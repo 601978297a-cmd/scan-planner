@@ -8,6 +8,7 @@ def generate_launch_description():
     bringup_share = get_package_share_directory("m20_scan_bringup")
     planner_yaml = os.path.join(bringup_share, "config", "m20_scan_planner.yaml")
     controller_yaml = os.path.join(bringup_share, "config", "m20_scan_controller.yaml")
+    safety_bridge_yaml = os.path.join(bringup_share, "config", "m20_scan_safety_bridge.yaml")
 
     return LaunchDescription([
         Node(
@@ -25,7 +26,7 @@ def generate_launch_description():
             parameters=[{
                 "target_frame": "map",
                 "source_frame": "rslidar_front",
-                "cloud_topic": "/rslidar_points",
+                "cloud_topic": "/rslidar_points_front",
                 "body_pose_topic": "/lightning/odom",
                 "base_frame": "base_link",
                 "output_topic": "/scan/sensor_pose",
@@ -43,7 +44,7 @@ def generate_launch_description():
             remappings=[
                 ("body_pose", "/lightning/odom"),
                 ("sensor_pose", "/scan/sensor_pose"),
-                ("cloud", "/rslidar_points"),
+                ("cloud", "/rslidar_points_front"),
                 ("move_base_simple/goal", "/move_base_simple/goal"),
                 ("initial_path", "/initial_path"),
             ],
@@ -59,5 +60,12 @@ def generate_launch_description():
                 ("body_pose", "/lightning/odom"),
                 ("cmd_vel", "/scan/cmd_vel_debug"),
             ],
+        ),
+        Node(
+            package="m20_scan_bringup",
+            executable="scan_m20_safety_bridge",
+            name="scan_m20_safety_bridge",
+            output="screen",
+            parameters=[safety_bridge_yaml],
         ),
     ])

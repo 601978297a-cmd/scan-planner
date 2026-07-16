@@ -191,7 +191,7 @@ Visualization Manager:
         Filter size: 10
         History Policy: Keep Last
         Reliability Policy: Best Effort
-        Value: /rslidar_points
+        Value: /rslidar_points_front
       Use Fixed Frame: true
       Use rainbow: true
       Value: true

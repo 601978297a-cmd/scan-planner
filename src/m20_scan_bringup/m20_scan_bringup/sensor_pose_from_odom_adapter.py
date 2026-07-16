@@ -4,6 +4,7 @@ from collections import deque
 import math
 
 import rclpy
+from rclpy.executors import ExternalShutdownException
 from nav_msgs.msg import Odometry
 from rclpy.duration import Duration
 from rclpy.node import Node
@@ -30,7 +31,7 @@ class SensorPoseFromOdomAdapter(Node):
         self.body_poses = deque(maxlen=200)
         self.extrinsic = None
         self.tf_buffer = tf2_ros.Buffer()
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self, spin_thread=True)
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self, spin_thread=False)
         self.pose_pub = self.create_publisher(Odometry, self.output_topic, qos_profile_sensor_data)
         self.body_pose_sub = self.create_subscription(
             Odometry,
@@ -183,9 +184,12 @@ def main(args=None):
     node = SensorPoseFromOdomAdapter()
     try:
         rclpy.spin(node)
+    except (KeyboardInterrupt, ExternalShutdownException):
+        pass
     finally:
         node.destroy_node()
-        rclpy.shutdown()
+        if rclpy.ok():
+            rclpy.shutdown()
 
 
 if __name__ == "__main__":
