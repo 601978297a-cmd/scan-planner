@@ -179,7 +179,7 @@ Visualization Manager:
       Max Intensity: 4096
       Min Color: 0; 0; 0
       Min Intensity: 0
-      Name: Filtered Obstacle Cloud
+      Name: Front LiDAR Raw Cloud
       Position Transformer: XYZ
       Selectable: true
       Size (Pixels): 3
@@ -191,7 +191,7 @@ Visualization Manager:
         Filter size: 10
         History Policy: Keep Last
         Reliability Policy: Best Effort
-        Value: /scan/current_scan_obstacles
+        Value: /rslidar_points
       Use Fixed Frame: true
       Use rainbow: true
       Value: true

@@ -24,6 +24,7 @@ setup(
     entry_points={
         "console_scripts": [
             "sensor_pose_adapter = m20_scan_bringup.sensor_pose_adapter:main",
+            "sensor_pose_from_odom_adapter = m20_scan_bringup.sensor_pose_from_odom_adapter:main",
             "cloud_filter_adapter = m20_scan_bringup.cloud_filter_adapter:main",
         ],
     },
