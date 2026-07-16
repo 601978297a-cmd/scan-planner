@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>m20_scan_bringup</name>
+  <version>0.1.0</version>
+  <description>Dry-run bringup for connecting M20 Lightning-LM localization to SCAN-Planner without robot command output.</description>
+  <maintainer email="nvidia@example.com">nvidia</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_python</buildtool_depend>
+
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
+
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>
