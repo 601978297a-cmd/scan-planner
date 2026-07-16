@@ -13,7 +13,7 @@ scan_planner_node:
     grid_map.frame_id: map
     grid_map.sliding_map_frame_id: sliding_map
     grid_map.sensor_type: lidar
-    grid_map.cloud_is_world: true
+    grid_map.cloud_is_world: false
     grid_map.need_extrinsic: false
 
     grid_map.resolution: 0.05
