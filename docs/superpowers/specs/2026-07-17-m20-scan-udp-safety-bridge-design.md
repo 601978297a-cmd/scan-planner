@@ -41,7 +41,14 @@ Inputs:
 - `/scan/cmd_vel_debug` (`geometry_msgs/msg/Twist`)
 - `/lightning/odom` (`nav_msgs/msg/Odometry`)
 - `/scan/sensor_pose` (`nav_msgs/msg/Odometry`)
-- `/rslidar_points_front` (`sensor_msgs/msg/PointCloud2`)
+- `/scan/front_cloud_stamp` (`std_msgs/msg/Header`)
+
+The existing sensor-pose adapter publishes `/scan/front_cloud_stamp` for every
+received `/rslidar_points_front` message, before pose matching. This preserves
+an independent cloud-freshness and timestamp check without making the safety
+bridge deserialize another approximately 1 MB point cloud. Directly subscribing
+the Python safety bridge to the full cloud reduced measured delivery rate and
+added about one CPU core of avoidable work.
 
 Outputs:
 

@@ -11,6 +11,7 @@ from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from rclpy.time import Time
 from sensor_msgs.msg import PointCloud2
+from std_msgs.msg import Header
 import tf2_ros
 
 
@@ -24,6 +25,8 @@ class SensorPoseFromOdomAdapter(Node):
         self.body_pose_topic = self.declare_parameter(
             "body_pose_topic", "/lightning/odom").value
         self.output_topic = self.declare_parameter("output_topic", "/scan/sensor_pose").value
+        self.cloud_stamp_topic = self.declare_parameter(
+            "cloud_stamp_topic", "/scan/front_cloud_stamp").value
         self.lookup_timeout_sec = float(self.declare_parameter("lookup_timeout_sec", 0.1).value)
         self.max_body_pose_delta_sec = float(
             self.declare_parameter("max_body_pose_delta_sec", 0.5).value)
@@ -33,6 +36,8 @@ class SensorPoseFromOdomAdapter(Node):
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self, spin_thread=False)
         self.pose_pub = self.create_publisher(Odometry, self.output_topic, qos_profile_sensor_data)
+        self.cloud_stamp_pub = self.create_publisher(
+            Header, self.cloud_stamp_topic, qos_profile_sensor_data)
         self.body_pose_sub = self.create_subscription(
             Odometry,
             self.body_pose_topic,
@@ -47,13 +52,19 @@ class SensorPoseFromOdomAdapter(Node):
         )
         self.get_logger().info(
             f"Publishing {self.output_topic} from {self.body_pose_topic} and TF "
-            f"{self.base_frame}->{self.source_frame} on {self.cloud_topic} timestamps"
+            f"{self.base_frame}->{self.source_frame} on {self.cloud_topic} timestamps; "
+            f"cloud stamp={self.cloud_stamp_topic}"
         )
 
     def body_pose_callback(self, msg: Odometry) -> None:
         self.body_poses.append(msg)
 
     def cloud_callback(self, cloud: PointCloud2) -> None:
+        cloud_stamp = Header()
+        cloud_stamp.stamp = cloud.header.stamp
+        cloud_stamp.frame_id = cloud.header.frame_id
+        self.cloud_stamp_pub.publish(cloud_stamp)
+
         if not self.body_poses:
             self.get_logger().warn(
                 f"No body pose received from {self.body_pose_topic}",

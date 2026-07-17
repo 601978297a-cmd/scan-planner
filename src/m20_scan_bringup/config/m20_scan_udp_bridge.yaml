@@ -1,0 +1,47 @@
+scan_m20_udp_safety_bridge:
+  ros__parameters:
+    enable_udp_output: false
+
+    udp_target_host: 10.21.31.103
+    udp_target_port: 30000
+    udp_bind_host: ""
+    udp_bind_port: 0
+
+    timer_rate: 20.0
+    command_rate: 10.0
+    preview_rate: 10.0
+    status_rate: 2.0
+    heartbeat_rate: 1.0
+    heartbeat_timeout: 2.0
+    stop_cycles: 20
+
+    max_vx: 0.05
+    max_wz: 0.20
+    max_ax: 0.10
+    max_awz: 0.50
+    yaw_zero_epsilon: 0.01
+
+    udp_max_x: 0.50
+    udp_yaw_deadzone: 0.50
+    udp_max_yaw: 1.00
+    yaw_start_threshold: 0.02
+    yaw_stop_threshold: 0.01
+
+    command_timeout: 0.20
+    body_pose_timeout: 0.50
+    sensor_pose_timeout: 0.50
+    front_cloud_timeout: 0.30
+    max_sensor_cloud_stamp_delta: 0.02
+
+    conflict_check_period: 0.50
+    conflicting_process_names:
+      - key_test
+      - m20_udp_drive_test.py
+
+    command_topic: /scan/cmd_vel_debug
+    body_pose_topic: /lightning/odom
+    sensor_pose_topic: /scan/sensor_pose
+    front_cloud_stamp_topic: /scan/front_cloud_stamp
+    preview_topic: /scan/udp_axis_preview
+    status_topic: /scan/udp_safety_status
+    arm_service: /scan/arm_udp_control

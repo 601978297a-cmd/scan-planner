@@ -1,0 +1,131 @@
+import math
+import os
+import socket
+import time
+
+from m20_scan_bringup.m20_udp_protocol import (
+    M20UdpLink,
+    PACKET_HEADER_SIZE,
+    PACKET_MAGIC,
+    UdpAxis,
+    UdpCommandMapper,
+    UdpMappingLimits,
+    build_axis_packet,
+    build_heartbeat_packet,
+    build_packet,
+    find_conflicting_processes,
+    heartbeat_error_code,
+    parse_packet,
+)
+
+
+LIMITS = UdpMappingLimits(
+    max_vx=0.05,
+    max_wz=0.20,
+    max_x=0.50,
+    yaw_deadzone=0.50,
+    max_yaw=1.00,
+    yaw_start_threshold=0.02,
+    yaw_stop_threshold=0.01,
+)
+
+
+def test_packet_matches_hqs_header_and_json_layout():
+    packet = build_axis_packet(
+        UdpAxis(x=0.25, yaw=-0.75),
+        timestamp="2026-07-17 12:00:00",
+    )
+    assert packet[:4] == PACKET_MAGIC
+    payload_size = int.from_bytes(packet[4:6], "little")
+    assert payload_size == len(packet) - PACKET_HEADER_SIZE
+
+    patrol = parse_packet(packet)["PatrolDevice"]
+    assert patrol["Type"] == 2
+    assert patrol["Command"] == 21
+    assert patrol["Items"] == {
+        "X": 0.25,
+        "Y": 0.0,
+        "Z": 0,
+        "Roll": 0,
+        "Pitch": 0,
+        "Yaw": -0.75,
+    }
+
+
+def test_heartbeat_ack_parser_accepts_only_matching_response():
+    ack = build_packet(
+        100,
+        100,
+        {"ErrorCode": 0},
+        timestamp="2026-07-17 12:00:00",
+    )
+    assert heartbeat_error_code(ack) == 0
+    assert heartbeat_error_code(build_heartbeat_packet()) is None
+    assert heartbeat_error_code(build_packet(2002, 1, {"ErrorCode": 0})) is None
+    assert heartbeat_error_code(b"invalid") is None
+
+
+def test_mapper_rejects_reverse_lateral_and_nonfinite_values():
+    mapper = UdpCommandMapper(LIMITS)
+    assert mapper.map(-0.5, 0.8, 0.0) == UdpAxis()
+    assert mapper.map(math.nan, 0.0, 0.2) == UdpAxis()
+    assert mapper.map(0.05, 0.0, math.inf) == UdpAxis()
+
+
+def test_mapper_scales_forward_and_saturates():
+    mapper = UdpCommandMapper(LIMITS)
+    assert mapper.map(0.025, 0.0, 0.0).x == 0.25
+    assert mapper.map(0.05, 0.0, 0.0).x == 0.50
+    assert mapper.map(1.0, 0.0, 0.0).x == 0.50
+
+
+def test_mapper_applies_yaw_deadzone_and_hysteresis():
+    mapper = UdpCommandMapper(LIMITS)
+    assert mapper.map(0.0, 0.0, 0.015).yaw == 0.0
+    assert math.isclose(mapper.map(0.0, 0.0, 0.02).yaw, 0.55)
+    assert mapper.map(0.0, 0.0, 0.015).yaw > 0.50
+    assert mapper.map(0.0, 0.0, 0.01).yaw == 0.0
+    assert mapper.map(0.0, 0.0, -0.015).yaw == 0.0
+    assert math.isclose(mapper.map(0.0, 0.0, -0.20).yaw, -1.0)
+
+
+def test_udp_link_round_trip_with_local_heartbeat_server():
+    server = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    server.bind(("127.0.0.1", 0))
+    server.settimeout(1.0)
+    link = M20UdpLink("127.0.0.1", server.getsockname()[1])
+    try:
+        link.send_heartbeat()
+        request, client_address = server.recvfrom(8192)
+        patrol = parse_packet(request)["PatrolDevice"]
+        assert (patrol["Type"], patrol["Command"]) == (100, 100)
+
+        server.sendto(build_packet(100, 100, {"ErrorCode": 0}), client_address)
+        deadline = time.monotonic() + 1.0
+        result = None
+        while result is None and time.monotonic() < deadline:
+            result = link.poll_heartbeat_error()
+            time.sleep(0.01)
+        assert result == 0
+    finally:
+        link.close()
+        server.close()
+
+
+def test_conflict_detection_reads_process_cmdlines(tmp_path):
+    proc_root = tmp_path / "proc"
+    proc_root.mkdir()
+    for pid, cmdline in (
+        ("101", b"./key_test\0"),
+        ("102", b"python3\0/home/nvidia/m20_udp_drive_test.py\0"),
+        ("103", b"python3\0unrelated.py\0"),
+    ):
+        process_dir = proc_root / pid
+        process_dir.mkdir()
+        (process_dir / "cmdline").write_bytes(cmdline)
+
+    assert find_conflicting_processes(
+        ("key_test", "m20_udp_drive_test.py"),
+        proc_root=str(proc_root),
+        own_pid=os.getpid(),
+    ) == ["key_test", "m20_udp_drive_test.py"]

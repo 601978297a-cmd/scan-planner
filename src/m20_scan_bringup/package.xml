@@ -2,7 +2,7 @@
 <package format="3">
   <name>m20_scan_bringup</name>
   <version>0.1.0</version>
-  <description>Dry-run bringup for connecting M20 Lightning-LM localization to SCAN-Planner without robot command output.</description>
+  <description>Guarded M20 Lightning-LM and SCAN-Planner integration.</description>
   <maintainer email="nvidia@example.com">nvidia</maintainer>
   <license>MIT</license>
 
@@ -15,6 +15,7 @@
   <exec_depend>nav_msgs</exec_depend>
   <exec_depend>rclpy</exec_depend>
   <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
   <exec_depend>std_srvs</exec_depend>
   <exec_depend>tf2_ros</exec_depend>
 
