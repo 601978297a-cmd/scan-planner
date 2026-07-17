@@ -6,6 +6,7 @@ from m20_scan_bringup.safety_bridge_core import (
     CommandLimits,
     FreshnessLimits,
     InputState,
+    RecentStampHistory,
     SafetyStateMachine,
     health_reasons,
     limit_command,
@@ -77,6 +78,71 @@ def test_health_reports_stale_and_stamp_mismatch():
     reasons = health_reasons(10.1, inputs, FRESHNESS, require_motion_info=False)
     assert "command_stale" in reasons
     assert "sensor_cloud_stamp_mismatch" in reasons
+
+
+def test_health_accepts_sensor_stamp_matching_recent_cloud_history():
+    inputs = InputState(
+        command_rx=10.0,
+        body_pose_rx=10.0,
+        sensor_pose_rx=10.0,
+        cloud_rx=10.0,
+        sensor_pose_stamp_ns=1_000_000_000,
+        cloud_stamp_ns=1_200_000_000,
+    )
+    reasons = health_reasons(
+        10.1,
+        inputs,
+        FRESHNESS,
+        require_motion_info=False,
+        cloud_stamp_history_ns=(1_000_000_000, 1_200_000_000),
+    )
+    assert "sensor_cloud_stamp_mismatch" not in reasons
+    assert "sensor_cloud_stamp_missing" not in reasons
+
+
+def test_health_reports_when_sensor_stamp_matches_no_recent_cloud():
+    inputs = InputState(
+        command_rx=10.0,
+        body_pose_rx=10.0,
+        sensor_pose_rx=10.0,
+        cloud_rx=10.0,
+        sensor_pose_stamp_ns=1_000_000_000,
+        cloud_stamp_ns=1_200_000_000,
+    )
+    reasons = health_reasons(
+        10.1,
+        inputs,
+        FRESHNESS,
+        require_motion_info=False,
+        cloud_stamp_history_ns=(1_100_000_000, 1_200_000_000),
+    )
+    assert "sensor_cloud_stamp_mismatch" in reasons
+
+
+def test_health_reports_missing_for_empty_cloud_history():
+    inputs = InputState(
+        command_rx=10.0,
+        body_pose_rx=10.0,
+        sensor_pose_rx=10.0,
+        cloud_rx=10.0,
+        sensor_pose_stamp_ns=1_000_000_000,
+    )
+    reasons = health_reasons(
+        10.1,
+        inputs,
+        FRESHNESS,
+        require_motion_info=False,
+        cloud_stamp_history_ns=(),
+    )
+    assert "sensor_cloud_stamp_missing" in reasons
+
+
+def test_recent_stamp_history_prunes_expired_entries():
+    history = RecentStampHistory(retention_sec=1.0, max_entries=3)
+    history.add(received_at=8.0, stamp_ns=800)
+    history.add(received_at=9.5, stamp_ns=950)
+    history.add(received_at=10.0, stamp_ns=1000)
+    assert history.stamps(now=10.1) == (950, 1000)
 
 
 def test_stop_sequence_requires_exact_zero_publish_count():

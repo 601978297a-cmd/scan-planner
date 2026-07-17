@@ -1,7 +1,8 @@
+from collections import deque
 from dataclasses import dataclass
 from enum import Enum
 import math
-from typing import Optional
+from typing import Iterable, Optional
 
 
 @dataclass(frozen=True)
@@ -75,6 +76,29 @@ class SafetyStateMachine:
         return False
 
 
+class RecentStampHistory:
+    def __init__(self, retention_sec: float, max_entries: int = 64) -> None:
+        if retention_sec <= 0.0:
+            raise ValueError("retention_sec must be positive")
+        if max_entries <= 0:
+            raise ValueError("max_entries must be positive")
+        self.retention_sec = float(retention_sec)
+        self._entries = deque(maxlen=int(max_entries))
+
+    def add(self, received_at: float, stamp_ns: int) -> None:
+        self._prune(received_at)
+        self._entries.append((float(received_at), int(stamp_ns)))
+
+    def stamps(self, now: float) -> tuple[int, ...]:
+        self._prune(now)
+        return tuple(stamp_ns for _, stamp_ns in self._entries)
+
+    def _prune(self, now: float) -> None:
+        cutoff = float(now) - self.retention_sec
+        while self._entries and self._entries[0][0] < cutoff:
+            self._entries.popleft()
+
+
 def limit_command(vx: float, wz: float, limits: CommandLimits) -> Command:
     vx = vx if math.isfinite(vx) else 0.0
     wz = wz if math.isfinite(wz) else 0.0
@@ -102,6 +126,7 @@ def health_reasons(
     inputs: InputState,
     limits: FreshnessLimits,
     require_motion_info: bool,
+    cloud_stamp_history_ns: Optional[Iterable[int]] = None,
 ) -> list[str]:
     checks = [
         ("command", inputs.command_rx, limits.command),
@@ -119,11 +144,23 @@ def health_reasons(
         elif now - received_at > timeout:
             reasons.append(f"{name}_stale")
 
-    if inputs.sensor_pose_stamp_ns is None or inputs.cloud_stamp_ns is None:
+    if cloud_stamp_history_ns is None:
+        cloud_stamps = (
+            () if inputs.cloud_stamp_ns is None
+            else (inputs.cloud_stamp_ns,)
+        )
+    else:
+        cloud_stamps = tuple(cloud_stamp_history_ns)
+
+    if inputs.sensor_pose_stamp_ns is None or not cloud_stamps:
         reasons.append("sensor_cloud_stamp_missing")
     else:
-        delta = abs(inputs.sensor_pose_stamp_ns - inputs.cloud_stamp_ns) / 1e9
-        if delta > limits.max_sensor_cloud_stamp_delta:
+        tolerance_ns = limits.max_sensor_cloud_stamp_delta * 1e9
+        matches_recent_cloud = any(
+            abs(inputs.sensor_pose_stamp_ns - cloud_stamp_ns) <= tolerance_ns
+            for cloud_stamp_ns in cloud_stamps
+        )
+        if not matches_recent_cloud:
             reasons.append("sensor_cloud_stamp_mismatch")
     return reasons
 

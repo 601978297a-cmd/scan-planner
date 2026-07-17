@@ -25,6 +25,7 @@ from .safety_bridge_core import (
     CommandLimits,
     FreshnessLimits,
     InputState,
+    RecentStampHistory,
     SafetyStateMachine,
     health_reasons,
     limit_command,
@@ -50,6 +51,9 @@ class ScanM20UdpSafetyBridge(Node):
         self.heartbeat_timeout = float(
             self.declare_parameter("heartbeat_timeout", 2.0).value)
         self.stop_cycles = int(self.declare_parameter("stop_cycles", 20).value)
+        self.cloud_stamp_history_sec = float(
+            self.declare_parameter(
+                "cloud_stamp_history_sec", 1.0).value)
         self.conflict_check_period = float(
             self.declare_parameter("conflict_check_period", 0.5).value)
         self.conflicting_process_names = tuple(
@@ -117,6 +121,8 @@ class ScanM20UdpSafetyBridge(Node):
             "arm_service", "/scan/arm_udp_control").value
 
         self.inputs = InputState()
+        self.cloud_stamp_history = RecentStampHistory(
+            retention_sec=self.cloud_stamp_history_sec)
         self.last_command = Command()
         self.preview_command = Command()
         self.preview_axis = UdpAxis()
@@ -205,8 +211,11 @@ class ScanM20UdpSafetyBridge(Node):
         self.inputs.sensor_pose_stamp_ns = self._stamp_ns(msg.header.stamp)
 
     def _front_cloud_callback(self, msg: Header) -> None:
-        self.inputs.cloud_rx = time.monotonic()
-        self.inputs.cloud_stamp_ns = self._stamp_ns(msg.stamp)
+        now = time.monotonic()
+        stamp_ns = self._stamp_ns(msg.stamp)
+        self.inputs.cloud_rx = now
+        self.inputs.cloud_stamp_ns = stamp_ns
+        self.cloud_stamp_history.add(now, stamp_ns)
 
     def _handle_arm(self, request: SetBool.Request, response: SetBool.Response):
         if not request.data:
@@ -347,6 +356,7 @@ class ScanM20UdpSafetyBridge(Node):
             self.inputs,
             self.freshness_limits,
             require_motion_info=False,
+            cloud_stamp_history_ns=self.cloud_stamp_history.stamps(now),
         )
 
     def _udp_health_reasons(self, now) -> list[str]:
