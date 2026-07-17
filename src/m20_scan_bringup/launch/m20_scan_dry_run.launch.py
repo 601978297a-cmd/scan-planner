@@ -39,6 +39,7 @@ def generate_launch_description():
                 "cloud_stamp_topic": "/scan/front_cloud_stamp",
                 "lookup_timeout_sec": 1.0,
                 "max_body_pose_delta_sec": 0.5,
+                "body_stamp_rate": 20.0,
                 "use_sim_time": False,
             }],
         ),

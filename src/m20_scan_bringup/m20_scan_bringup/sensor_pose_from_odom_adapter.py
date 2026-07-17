@@ -2,13 +2,22 @@
 
 from collections import deque
 import math
+import threading
+import time
 
 import rclpy
-from rclpy.executors import ExternalShutdownException
 from nav_msgs.msg import Odometry
+from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
 from rclpy.duration import Duration
+from rclpy.executors import ExternalShutdownException, MultiThreadedExecutor
 from rclpy.node import Node
-from rclpy.qos import qos_profile_sensor_data
+from rclpy.qos import (
+    DurabilityPolicy,
+    HistoryPolicy,
+    QoSProfile,
+    ReliabilityPolicy,
+    qos_profile_sensor_data,
+)
 from rclpy.time import Time
 from sensor_msgs.msg import PointCloud2
 from std_msgs.msg import Header
@@ -33,9 +42,24 @@ class SensorPoseFromOdomAdapter(Node):
         self.lookup_timeout_sec = float(self.declare_parameter("lookup_timeout_sec", 0.1).value)
         self.max_body_pose_delta_sec = float(
             self.declare_parameter("max_body_pose_delta_sec", 0.5).value)
+        self.body_stamp_rate = float(
+            self.declare_parameter("body_stamp_rate", 20.0).value)
+        if self.body_stamp_rate <= 0.0:
+            raise ValueError("body_stamp_rate must be positive")
+        self.body_stamp_period_sec = 1.0 / self.body_stamp_rate
+        self.last_body_stamp_publish = None
 
-        self.body_poses = deque(maxlen=200)
+        self.body_poses = deque(maxlen=400)
+        self.body_pose_lock = threading.Lock()
         self.extrinsic = None
+        self.body_callback_group = MutuallyExclusiveCallbackGroup()
+        self.cloud_callback_group = MutuallyExclusiveCallbackGroup()
+        self.input_qos = QoSProfile(
+            history=HistoryPolicy.KEEP_LAST,
+            depth=1,
+            reliability=ReliabilityPolicy.BEST_EFFORT,
+            durability=DurabilityPolicy.VOLATILE,
+        )
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self, spin_thread=False)
         self.pose_pub = self.create_publisher(Odometry, self.output_topic, qos_profile_sensor_data)
@@ -47,27 +71,39 @@ class SensorPoseFromOdomAdapter(Node):
             Odometry,
             self.body_pose_topic,
             self.body_pose_callback,
-            qos_profile_sensor_data,
+            self.input_qos,
+            callback_group=self.body_callback_group,
         )
         self.cloud_sub = self.create_subscription(
             PointCloud2,
             self.cloud_topic,
             self.cloud_callback,
-            qos_profile_sensor_data,
+            self.input_qos,
+            callback_group=self.cloud_callback_group,
         )
         self.get_logger().info(
             f"Publishing {self.output_topic} from {self.body_pose_topic} and TF "
             f"{self.base_frame}->{self.source_frame} on {self.cloud_topic} timestamps; "
-            f"body stamp={self.body_pose_stamp_topic}; "
+            f"body stamp={self.body_pose_stamp_topic} at {self.body_stamp_rate:.1f} Hz; "
             f"cloud stamp={self.cloud_stamp_topic}"
         )
 
     def body_pose_callback(self, msg: Odometry) -> None:
+        with self.body_pose_lock:
+            self.body_poses.append(msg)
+
+        now = time.monotonic()
+        if (
+            self.last_body_stamp_publish is not None
+            and now - self.last_body_stamp_publish < self.body_stamp_period_sec
+        ):
+            return
+
         body_pose_stamp = Header()
         body_pose_stamp.stamp = msg.header.stamp
         body_pose_stamp.frame_id = msg.header.frame_id
         self.body_pose_stamp_pub.publish(body_pose_stamp)
-        self.body_poses.append(msg)
+        self.last_body_stamp_publish = now
 
     def cloud_callback(self, cloud: PointCloud2) -> None:
         cloud_stamp = Header()
@@ -75,7 +111,9 @@ class SensorPoseFromOdomAdapter(Node):
         cloud_stamp.frame_id = cloud.header.frame_id
         self.cloud_stamp_pub.publish(cloud_stamp)
 
-        if not self.body_poses:
+        with self.body_pose_lock:
+            body_poses = list(self.body_poses)
+        if not body_poses:
             self.get_logger().warn(
                 f"No body pose received from {self.body_pose_topic}",
                 throttle_duration_sec=2.0,
@@ -84,7 +122,7 @@ class SensorPoseFromOdomAdapter(Node):
 
         cloud_ns = self._stamp_nanoseconds(cloud.header.stamp)
         body_pose = min(
-            self.body_poses,
+            body_poses,
             key=lambda pose: abs(self._stamp_nanoseconds(pose.header.stamp) - cloud_ns),
         )
         pose_ns = self._stamp_nanoseconds(body_pose.header.stamp)
@@ -203,11 +241,14 @@ class SensorPoseFromOdomAdapter(Node):
 def main(args=None):
     rclpy.init(args=args)
     node = SensorPoseFromOdomAdapter()
+    executor = MultiThreadedExecutor(num_threads=2)
+    executor.add_node(node)
     try:
-        rclpy.spin(node)
+        executor.spin()
     except (KeyboardInterrupt, ExternalShutdownException):
         pass
     finally:
+        executor.shutdown()
         node.destroy_node()
         if rclpy.ok():
             rclpy.shutdown()

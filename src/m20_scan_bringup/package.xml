@@ -2,7 +2,7 @@
 <package format="3">
   <name>m20_scan_bringup</name>
   <version>0.1.0</version>
-  <description>Guarded M20 Lightning-LM and SCAN-Planner integration.</description>
+  <description>Guarded M20 Super-LIO and SCAN-Planner integration.</description>
   <maintainer email="nvidia@example.com">nvidia</maintainer>
   <license>MIT</license>
 

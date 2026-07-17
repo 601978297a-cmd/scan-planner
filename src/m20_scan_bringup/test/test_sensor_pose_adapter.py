@@ -36,3 +36,27 @@ def test_body_pose_callback_publishes_matching_header():
     finally:
         node.destroy_node()
         rclpy.shutdown()
+
+
+def test_body_pose_callback_rate_limits_stamp_but_keeps_pose_history():
+    rclpy.init()
+    node = SensorPoseFromOdomAdapter()
+    capture = CapturingPublisher()
+    node.body_pose_stamp_pub = capture
+    node.body_stamp_period_sec = 10.0
+    try:
+        first = Odometry()
+        first.header.frame_id = "world"
+        second = Odometry()
+        second.header.frame_id = "world"
+
+        node.body_pose_callback(first)
+        node.body_pose_callback(second)
+
+        assert len(capture.messages) == 1
+        poses = list(node.body_poses)
+        assert poses[-2] is first
+        assert poses[-1] is second
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()

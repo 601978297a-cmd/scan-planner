@@ -32,3 +32,17 @@ def test_operator_and_legacy_safety_configs_use_super_lio():
     assert "Fixed Frame: world" in rviz
     assert "Value: /lio/robo/odom" in rviz
     assert "body_pose_topic: /lio/robo/odom" in safety
+
+
+def test_rviz_defaults_to_low_load_navigation_view():
+    rviz = _read("rviz/m20_scan.rviz")
+
+    raw_cloud_name = rviz.index("Name: Front LiDAR Raw Cloud")
+    raw_cloud_start = rviz.rfind("    - Alpha:", 0, raw_cloud_name)
+    occupancy_start = rviz.index("Name: Occupancy")
+    raw_cloud = rviz[raw_cloud_start:occupancy_start]
+
+    assert "Enabled: false" in raw_cloud
+    assert "Value: false" in raw_cloud
+    assert "Frame Rate: 10" in rviz
+    assert "Reference Frame: world" in rviz
