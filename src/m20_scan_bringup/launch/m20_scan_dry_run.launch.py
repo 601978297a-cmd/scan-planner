@@ -9,9 +9,12 @@ import os
 
 def generate_launch_description():
     bringup_share = get_package_share_directory("m20_scan_bringup")
-    planner_yaml = os.path.join(bringup_share, "config", "m20_scan_planner.yaml")
-    controller_yaml = os.path.join(bringup_share, "config", "m20_scan_controller.yaml")
-    safety_bridge_yaml = os.path.join(bringup_share, "config", "m20_scan_safety_bridge.yaml")
+    planner_yaml = os.path.join(
+        bringup_share, "config", "m20_scan_planner.yaml")
+    controller_yaml = os.path.join(
+        bringup_share, "config", "m20_scan_controller.yaml")
+    safety_bridge_yaml = os.path.join(
+        bringup_share, "config", "m20_scan_safety_bridge.yaml")
     udp_bridge_yaml = os.path.join(
         bringup_share, "config", "m20_scan_udp_bridge.yaml")
     control_backend = LaunchConfiguration("control_backend")
@@ -34,7 +37,10 @@ def generate_launch_description():
                 "cloud_topic": "/rslidar_points_front",
                 "output_topic": "/scan/sensor_pose",
                 "cloud_stamp_topic": "/scan/front_cloud_stamp",
-                "lookup_timeout_sec": 0.05,
+                "synced_cloud_topic": "/scan/front_cloud_synced",
+                "max_tf_wait_sec": 0.5,
+                "retry_period_sec": 0.02,
+                "max_queue_size": 16,
                 "use_sim_time": False,
             }],
         ),
@@ -47,7 +53,7 @@ def generate_launch_description():
             remappings=[
                 ("body_pose", "/lio/robo/odom"),
                 ("sensor_pose", "/scan/sensor_pose"),
-                ("cloud", "/rslidar_points_front"),
+                ("cloud", "/scan/front_cloud_synced"),
                 ("move_base_simple/goal", "/move_base_simple/goal"),
                 ("initial_path", "/initial_path"),
             ],

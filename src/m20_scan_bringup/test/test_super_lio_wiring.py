@@ -18,6 +18,14 @@ def test_launch_uses_super_lio_for_every_body_pose_consumer():
     assert "map_to_world_for_scan_markers" not in launch
 
 
+def test_planner_uses_cloud_republished_with_matching_sensor_pose():
+    launch = _read("launch/m20_scan_dry_run.launch.py")
+
+    assert '"synced_cloud_topic": "/scan/front_cloud_synced"' in launch
+    assert '("cloud", "/scan/front_cloud_synced")' in launch
+    assert '"max_tf_wait_sec": 0.5' in launch
+
+
 def test_planner_keeps_front_cloud_in_sensor_coordinates():
     planner = _read("config/m20_scan_planner.yaml")
 
