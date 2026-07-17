@@ -1,5 +1,12 @@
 # M20 Lightning-LM to SCAN-Planner Dry-Run Report
 
+> Historical report: this records the original 2026-07-15 Lightning dry-run.
+> The current M20 bringup uses Super-LIO `/lio/robo/odom`, global frame
+> `world`, and front obstacle cloud `/rslidar_points_front`. The SCAN
+> controller still publishes only `/scan/cmd_vel_debug`; guarded hardware
+> outputs remain disabled by default. See
+> `docs/superpowers/specs/2026-07-17-m20-scan-super-lio-backend-design.md`.
+
 Date: 2026-07-15
 Host: 192.168.0.174 / nvidia-desktop / ROS 2 Humble
 Workspace: `/home/nvidia/scan_interface_audit/SCAN-Planner`

@@ -24,14 +24,14 @@ def test_body_pose_callback_publishes_matching_header():
         odom = Odometry()
         odom.header.stamp.sec = 123
         odom.header.stamp.nanosec = 456
-        odom.header.frame_id = "map"
+        odom.header.frame_id = "world"
 
         node.body_pose_callback(odom)
 
         assert len(capture.messages) == 1
         header = capture.messages[0]
         assert header.stamp == odom.header.stamp
-        assert header.frame_id == "map"
+        assert header.frame_id == "world"
         assert node.body_poses[-1] is odom
     finally:
         node.destroy_node()

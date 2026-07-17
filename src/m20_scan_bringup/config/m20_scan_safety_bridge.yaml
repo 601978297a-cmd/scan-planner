@@ -22,7 +22,7 @@ scan_m20_safety_bridge:
     max_sensor_cloud_stamp_delta: 0.02
 
     command_topic: /scan/cmd_vel_debug
-    body_pose_topic: /lightning/odom
+    body_pose_topic: /lio/robo/odom
     sensor_pose_topic: /scan/sensor_pose
     front_cloud_topic: /rslidar_points_front
     preview_topic: /scan/nav_cmd_preview

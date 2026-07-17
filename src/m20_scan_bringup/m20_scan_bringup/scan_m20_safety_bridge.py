@@ -66,7 +66,7 @@ class ScanM20SafetyBridge(Node):
         self.command_topic = self.declare_parameter(
             "command_topic", "/scan/cmd_vel_debug").value
         self.body_pose_topic = self.declare_parameter(
-            "body_pose_topic", "/lightning/odom").value
+            "body_pose_topic", "/lio/robo/odom").value
         self.sensor_pose_topic = self.declare_parameter(
             "sensor_pose_topic", "/scan/sensor_pose").value
         self.front_cloud_topic = self.declare_parameter(
@@ -97,7 +97,11 @@ class ScanM20SafetyBridge(Node):
         self.sensor_pose_sub = self.create_subscription(
             Odometry, self.sensor_pose_topic, self._sensor_pose_callback, qos_profile_sensor_data)
         self.front_cloud_sub = self.create_subscription(
-            PointCloud2, self.front_cloud_topic, self._front_cloud_callback, qos_profile_sensor_data)
+            PointCloud2,
+            self.front_cloud_topic,
+            self._front_cloud_callback,
+            qos_profile_sensor_data,
+        )
         self.arm_service = self.create_service(SetBool, "/scan/arm_nav_cmd", self._handle_arm)
 
         if self.enable_m20_output:

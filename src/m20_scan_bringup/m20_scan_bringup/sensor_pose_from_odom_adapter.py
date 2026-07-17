@@ -18,12 +18,13 @@ import tf2_ros
 class SensorPoseFromOdomAdapter(Node):
     def __init__(self):
         super().__init__("sensor_pose_from_odom_adapter")
-        self.target_frame = self.declare_parameter("target_frame", "map").value
+        self.target_frame = self.declare_parameter("target_frame", "world").value
         self.base_frame = self.declare_parameter("base_frame", "base_link").value
         self.source_frame = self.declare_parameter("source_frame", "rslidar_front").value
-        self.cloud_topic = self.declare_parameter("cloud_topic", "/rslidar_points").value
+        self.cloud_topic = self.declare_parameter(
+            "cloud_topic", "/rslidar_points_front").value
         self.body_pose_topic = self.declare_parameter(
-            "body_pose_topic", "/lightning/odom").value
+            "body_pose_topic", "/lio/robo/odom").value
         self.output_topic = self.declare_parameter("output_topic", "/scan/sensor_pose").value
         self.body_pose_stamp_topic = self.declare_parameter(
             "body_pose_stamp_topic", "/scan/body_pose_stamp").value

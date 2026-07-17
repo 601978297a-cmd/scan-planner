@@ -24,22 +24,15 @@ def generate_launch_description():
             description="Select exactly one guarded M20 control backend.",
         ),
         Node(
-            package="tf2_ros",
-            executable="static_transform_publisher",
-            name="map_to_world_for_scan_markers",
-            output="screen",
-            arguments=["0", "0", "0", "0", "0", "0", "map", "world"],
-        ),
-        Node(
             package="m20_scan_bringup",
             executable="sensor_pose_from_odom_adapter",
             name="sensor_pose_adapter",
             output="screen",
             parameters=[{
-                "target_frame": "map",
+                "target_frame": "world",
                 "source_frame": "rslidar_front",
                 "cloud_topic": "/rslidar_points_front",
-                "body_pose_topic": "/lightning/odom",
+                "body_pose_topic": "/lio/robo/odom",
                 "base_frame": "base_link",
                 "output_topic": "/scan/sensor_pose",
                 "body_pose_stamp_topic": "/scan/body_pose_stamp",
@@ -56,7 +49,7 @@ def generate_launch_description():
             output="screen",
             parameters=[planner_yaml],
             remappings=[
-                ("body_pose", "/lightning/odom"),
+                ("body_pose", "/lio/robo/odom"),
                 ("sensor_pose", "/scan/sensor_pose"),
                 ("cloud", "/rslidar_points_front"),
                 ("move_base_simple/goal", "/move_base_simple/goal"),
@@ -71,7 +64,7 @@ def generate_launch_description():
             parameters=[controller_yaml],
             remappings=[
                 ("planning/bspline", "/planning/bspline"),
-                ("body_pose", "/lightning/odom"),
+                ("body_pose", "/lio/robo/odom"),
                 ("cmd_vel", "/scan/cmd_vel_debug"),
             ],
         ),

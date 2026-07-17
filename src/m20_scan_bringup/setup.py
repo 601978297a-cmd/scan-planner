@@ -18,7 +18,7 @@ setup(
     zip_safe=True,
     maintainer="nvidia",
     maintainer_email="nvidia@example.com",
-    description="Dry-run bringup for connecting M20 Lightning-LM localization to SCAN-Planner.",
+    description="Guarded M20 Super-LIO localization and SCAN-Planner bringup.",
     license="MIT",
     tests_require=["pytest"],
     entry_points={
