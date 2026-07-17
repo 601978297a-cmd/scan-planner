@@ -42,6 +42,7 @@ def generate_launch_description():
                 "body_pose_topic": "/lightning/odom",
                 "base_frame": "base_link",
                 "output_topic": "/scan/sensor_pose",
+                "body_pose_stamp_topic": "/scan/body_pose_stamp",
                 "cloud_stamp_topic": "/scan/front_cloud_stamp",
                 "lookup_timeout_sec": 1.0,
                 "max_body_pose_delta_sec": 0.5,

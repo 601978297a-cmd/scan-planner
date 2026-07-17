@@ -25,6 +25,8 @@ class SensorPoseFromOdomAdapter(Node):
         self.body_pose_topic = self.declare_parameter(
             "body_pose_topic", "/lightning/odom").value
         self.output_topic = self.declare_parameter("output_topic", "/scan/sensor_pose").value
+        self.body_pose_stamp_topic = self.declare_parameter(
+            "body_pose_stamp_topic", "/scan/body_pose_stamp").value
         self.cloud_stamp_topic = self.declare_parameter(
             "cloud_stamp_topic", "/scan/front_cloud_stamp").value
         self.lookup_timeout_sec = float(self.declare_parameter("lookup_timeout_sec", 0.1).value)
@@ -36,6 +38,8 @@ class SensorPoseFromOdomAdapter(Node):
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self, spin_thread=False)
         self.pose_pub = self.create_publisher(Odometry, self.output_topic, qos_profile_sensor_data)
+        self.body_pose_stamp_pub = self.create_publisher(
+            Header, self.body_pose_stamp_topic, qos_profile_sensor_data)
         self.cloud_stamp_pub = self.create_publisher(
             Header, self.cloud_stamp_topic, qos_profile_sensor_data)
         self.body_pose_sub = self.create_subscription(
@@ -53,10 +57,15 @@ class SensorPoseFromOdomAdapter(Node):
         self.get_logger().info(
             f"Publishing {self.output_topic} from {self.body_pose_topic} and TF "
             f"{self.base_frame}->{self.source_frame} on {self.cloud_topic} timestamps; "
+            f"body stamp={self.body_pose_stamp_topic}; "
             f"cloud stamp={self.cloud_stamp_topic}"
         )
 
     def body_pose_callback(self, msg: Odometry) -> None:
+        body_pose_stamp = Header()
+        body_pose_stamp.stamp = msg.header.stamp
+        body_pose_stamp.frame_id = msg.header.frame_id
+        self.body_pose_stamp_pub.publish(body_pose_stamp)
         self.body_poses.append(msg)
 
     def cloud_callback(self, cloud: PointCloud2) -> None:

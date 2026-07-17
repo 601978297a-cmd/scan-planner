@@ -40,7 +40,7 @@ scan_m20_udp_safety_bridge:
       - m20_udp_drive_test.py
 
     command_topic: /scan/cmd_vel_debug
-    body_pose_topic: /lightning/odom
+    body_pose_stamp_topic: /scan/body_pose_stamp
     sensor_pose_topic: /scan/sensor_pose
     front_cloud_stamp_topic: /scan/front_cloud_stamp
     preview_topic: /scan/udp_axis_preview
