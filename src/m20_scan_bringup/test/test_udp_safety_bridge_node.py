@@ -74,12 +74,12 @@ def test_new_cloud_does_not_invalidate_pose_matching_previous_cloud():
         rclpy.shutdown()
 
 
-def test_body_pose_header_updates_freshness():
+def test_body_pose_odom_updates_freshness():
     rclpy.init()
     node = ScanM20UdpSafetyBridge()
     try:
         assert node.inputs.body_pose_rx is None
-        node._body_pose_callback(Header())
+        node._body_pose_callback(Odometry())
         assert node.inputs.body_pose_rx is not None
     finally:
         node.destroy_node()

@@ -107,8 +107,8 @@ class ScanM20UdpSafetyBridge(Node):
 
         self.command_topic = self.declare_parameter(
             "command_topic", "/scan/cmd_vel_debug").value
-        self.body_pose_stamp_topic = self.declare_parameter(
-            "body_pose_stamp_topic", "/scan/body_pose_stamp").value
+        self.body_pose_topic = self.declare_parameter(
+            "body_pose_topic", "/lio/robo/odom").value
         self.sensor_pose_topic = self.declare_parameter(
             "sensor_pose_topic", "/scan/sensor_pose").value
         self.front_cloud_stamp_topic = self.declare_parameter(
@@ -148,8 +148,8 @@ class ScanM20UdpSafetyBridge(Node):
         self.command_sub = self.create_subscription(
             Twist, self.command_topic, self._command_callback, 10)
         self.body_pose_sub = self.create_subscription(
-            Header,
-            self.body_pose_stamp_topic,
+            Odometry,
+            self.body_pose_topic,
             self._body_pose_callback,
             qos_profile_sensor_data,
         )
@@ -203,7 +203,7 @@ class ScanM20UdpSafetyBridge(Node):
             wz=msg.angular.z,
         )
 
-    def _body_pose_callback(self, _msg: Header) -> None:
+    def _body_pose_callback(self, _msg: Odometry) -> None:
         self.inputs.body_pose_rx = time.monotonic()
 
     def _sensor_pose_callback(self, msg: Odometry) -> None:

@@ -2,7 +2,7 @@
 
 > Historical report: this records the original 2026-07-15 Lightning dry-run.
 > The current M20 bringup uses Super-LIO `/lio/robo/odom`, global frame
-> `world`, and front obstacle cloud `/rslidar_points_front`. The SCAN
+> `map`, and front obstacle cloud `/rslidar_points_front`. The SCAN
 > controller still publishes only `/scan/cmd_vel_debug`; guarded hardware
 > outputs remain disabled by default. See
 > `docs/superpowers/specs/2026-07-17-m20-scan-super-lio-backend-design.md`.

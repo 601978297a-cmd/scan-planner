@@ -1,10 +1,9 @@
-from nav_msgs.msg import Odometry
+from geometry_msgs.msg import TransformStamped
+from sensor_msgs.msg import PointCloud2
 
 import rclpy
 
-from m20_scan_bringup.sensor_pose_from_odom_adapter import (
-    SensorPoseFromOdomAdapter,
-)
+from m20_scan_bringup.sensor_pose_adapter import SensorPoseAdapter
 
 
 class CapturingPublisher:
@@ -15,48 +14,55 @@ class CapturingPublisher:
         self.messages.append(message)
 
 
-def test_body_pose_callback_publishes_matching_header():
+class FixedTransformBuffer:
+    def __init__(self, transform):
+        self.transform = transform
+
+    def lookup_transform(self, *_args, **_kwargs):
+        return self.transform
+
+
+class NoopTransformListener:
+    def __init__(self, *_args, **_kwargs):
+        pass
+
+
+def test_cloud_callback_publishes_stamp_and_tf_pose(monkeypatch):
+    monkeypatch.setattr(
+        "m20_scan_bringup.sensor_pose_adapter.tf2_ros.TransformListener",
+        NoopTransformListener,
+    )
     rclpy.init()
-    node = SensorPoseFromOdomAdapter()
-    capture = CapturingPublisher()
-    node.body_pose_stamp_pub = capture
+    node = SensorPoseAdapter()
+    pose_capture = CapturingPublisher()
+    stamp_capture = CapturingPublisher()
+    node.pose_pub = pose_capture
+    node.cloud_stamp_pub = stamp_capture
     try:
-        odom = Odometry()
-        odom.header.stamp.sec = 123
-        odom.header.stamp.nanosec = 456
-        odom.header.frame_id = "world"
+        transform = TransformStamped()
+        transform.header.frame_id = "map"
+        transform.child_frame_id = "rslidar_front"
+        transform.transform.translation.x = 0.32
+        transform.transform.rotation.w = 1.0
+        node.tf_buffer = FixedTransformBuffer(transform)
 
-        node.body_pose_callback(odom)
+        cloud = PointCloud2()
+        cloud.header.stamp.sec = 123
+        cloud.header.stamp.nanosec = 456
+        cloud.header.frame_id = "rslidar_front"
+        node.cloud_callback(cloud)
 
-        assert len(capture.messages) == 1
-        header = capture.messages[0]
-        assert header.stamp == odom.header.stamp
-        assert header.frame_id == "world"
-        assert node.body_poses[-1] is odom
-    finally:
-        node.destroy_node()
-        rclpy.shutdown()
+        assert len(stamp_capture.messages) == 1
+        assert stamp_capture.messages[0].stamp == cloud.header.stamp
+        assert stamp_capture.messages[0].frame_id == "rslidar_front"
 
-
-def test_body_pose_callback_rate_limits_stamp_but_keeps_pose_history():
-    rclpy.init()
-    node = SensorPoseFromOdomAdapter()
-    capture = CapturingPublisher()
-    node.body_pose_stamp_pub = capture
-    node.body_stamp_period_sec = 10.0
-    try:
-        first = Odometry()
-        first.header.frame_id = "world"
-        second = Odometry()
-        second.header.frame_id = "world"
-
-        node.body_pose_callback(first)
-        node.body_pose_callback(second)
-
-        assert len(capture.messages) == 1
-        poses = list(node.body_poses)
-        assert poses[-2] is first
-        assert poses[-1] is second
+        assert len(pose_capture.messages) == 1
+        pose = pose_capture.messages[0]
+        assert pose.header.stamp == cloud.header.stamp
+        assert pose.header.frame_id == "map"
+        assert pose.child_frame_id == "rslidar_front"
+        assert pose.pose.pose.position.x == 0.32
+        assert pose.pose.pose.orientation.w == 1.0
     finally:
         node.destroy_node()
         rclpy.shutdown()

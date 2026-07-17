@@ -8,6 +8,7 @@ from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from rclpy.time import Time
 from sensor_msgs.msg import PointCloud2
+from std_msgs.msg import Header
 import tf2_ros
 
 
@@ -15,14 +16,20 @@ class SensorPoseAdapter(Node):
     def __init__(self):
         super().__init__("sensor_pose_adapter")
         self.target_frame = self.declare_parameter("target_frame", "map").value
-        self.source_frame = self.declare_parameter("source_frame", "lidar_link").value
-        self.cloud_topic = self.declare_parameter("cloud_topic", "/lightning/current_scan").value
+        self.source_frame = self.declare_parameter(
+            "source_frame", "rslidar_front").value
+        self.cloud_topic = self.declare_parameter(
+            "cloud_topic", "/rslidar_points_front").value
         self.output_topic = self.declare_parameter("output_topic", "/scan/sensor_pose").value
+        self.cloud_stamp_topic = self.declare_parameter(
+            "cloud_stamp_topic", "/scan/front_cloud_stamp").value
         self.lookup_timeout_sec = float(self.declare_parameter("lookup_timeout_sec", 0.05).value)
 
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self, spin_thread=True)
         self.pose_pub = self.create_publisher(Odometry, self.output_topic, qos_profile_sensor_data)
+        self.cloud_stamp_pub = self.create_publisher(
+            Header, self.cloud_stamp_topic, qos_profile_sensor_data)
         self.cloud_sub = self.create_subscription(
             PointCloud2,
             self.cloud_topic,
@@ -35,6 +42,11 @@ class SensorPoseAdapter(Node):
         )
 
     def cloud_callback(self, msg: PointCloud2) -> None:
+        cloud_stamp = Header()
+        cloud_stamp.stamp = msg.header.stamp
+        cloud_stamp.frame_id = msg.header.frame_id
+        self.cloud_stamp_pub.publish(cloud_stamp)
+
         stamp = self._stamp_to_time(msg.header.stamp)
         try:
             transform = self.tf_buffer.lookup_transform(
