@@ -24,7 +24,7 @@ scan_m20_safety_bridge:
     command_topic: /scan/cmd_vel_debug
     body_pose_topic: /lio/robo/odom
     sensor_pose_topic: /scan/sensor_pose
-    front_cloud_topic: /rslidar_points_front
+    front_cloud_stamp_topic: /scan/front_cloud_stamp
     preview_topic: /scan/nav_cmd_preview
     status_topic: /scan/nav_safety_status
     nav_cmd_topic: /NAV_CMD

@@ -9,7 +9,7 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy
 from rclpy.qos import qos_profile_sensor_data
-from sensor_msgs.msg import PointCloud2
+from std_msgs.msg import Header
 from std_srvs.srv import SetBool
 
 from .safety_bridge_core import (
@@ -69,8 +69,8 @@ class ScanM20SafetyBridge(Node):
             "body_pose_topic", "/lio/robo/odom").value
         self.sensor_pose_topic = self.declare_parameter(
             "sensor_pose_topic", "/scan/sensor_pose").value
-        self.front_cloud_topic = self.declare_parameter(
-            "front_cloud_topic", "/rslidar_points_front").value
+        self.front_cloud_stamp_topic = self.declare_parameter(
+            "front_cloud_stamp_topic", "/scan/front_cloud_stamp").value
         self.preview_topic = self.declare_parameter(
             "preview_topic", "/scan/nav_cmd_preview").value
         self.status_topic = self.declare_parameter(
@@ -97,8 +97,8 @@ class ScanM20SafetyBridge(Node):
         self.sensor_pose_sub = self.create_subscription(
             Odometry, self.sensor_pose_topic, self._sensor_pose_callback, qos_profile_sensor_data)
         self.front_cloud_sub = self.create_subscription(
-            PointCloud2,
-            self.front_cloud_topic,
+            Header,
+            self.front_cloud_stamp_topic,
             self._front_cloud_callback,
             qos_profile_sensor_data,
         )
@@ -138,9 +138,9 @@ class ScanM20SafetyBridge(Node):
         self.inputs.sensor_pose_rx = time.monotonic()
         self.inputs.sensor_pose_stamp_ns = self._stamp_ns(msg.header.stamp)
 
-    def _front_cloud_callback(self, msg: PointCloud2) -> None:
+    def _front_cloud_callback(self, msg: Header) -> None:
         self.inputs.cloud_rx = time.monotonic()
-        self.inputs.cloud_stamp_ns = self._stamp_ns(msg.header.stamp)
+        self.inputs.cloud_stamp_ns = self._stamp_ns(msg.stamp)
 
     def _motion_info_callback(self, _msg) -> None:
         self.inputs.motion_info_rx = time.monotonic()
