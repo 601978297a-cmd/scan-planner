@@ -64,16 +64,21 @@ public:
     tf_listener_ = std::make_unique<tf2_ros::TransformListener>(
       tf_buffer_, this, true);
 
-    const auto sensor_qos = rclcpp::SensorDataQoS();
-    pose_pub_ = create_publisher<nav_msgs::msg::Odometry>(output_topic_, sensor_qos);
-    cloud_stamp_pub_ = create_publisher<std_msgs::msg::Header>(cloud_stamp_topic_, sensor_qos);
-    synced_cloud_pub_ = create_publisher<PointCloud>(synced_cloud_topic_, sensor_qos);
+    const auto reliable_pair_qos =
+      rclcpp::QoS(rclcpp::KeepLast(5)).reliable().durability_volatile();
+    const auto stamp_qos = rclcpp::SensorDataQoS();
+    pose_pub_ = create_publisher<nav_msgs::msg::Odometry>(
+      output_topic_, reliable_pair_qos);
+    cloud_stamp_pub_ = create_publisher<std_msgs::msg::Header>(
+      cloud_stamp_topic_, stamp_qos);
+    synced_cloud_pub_ = create_publisher<PointCloud>(
+      synced_cloud_topic_, reliable_pair_qos);
 
     rclcpp::SubscriptionOptions cloud_options;
     cloud_options.callback_group = cloud_callback_group_;
     cloud_sub_ = create_subscription<PointCloud>(
       cloud_topic_,
-      sensor_qos,
+      reliable_pair_qos,
       std::bind(&SensorPoseAdapter::cloud_callback, this, std::placeholders::_1),
       cloud_options);
 

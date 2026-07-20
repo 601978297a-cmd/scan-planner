@@ -35,3 +35,29 @@ def test_cpp_adapter_preserves_topics_and_three_execution_paths():
     assert "match_callback_group_" in source
     assert "MultiThreadedExecutor" in source
     assert "ExecutorOptions(), 2" in source
+
+
+def test_cpp_adapter_and_planner_use_reliable_paired_cloud_qos():
+    adapter = _read(
+        WORKSPACE_SRC /
+        "m20_sensor_pose_adapter_cpp/src/sensor_pose_adapter.cpp")
+    planner = _read(
+        WORKSPACE_SRC /
+        "planner/plan_env/src/grid_map.cpp")
+
+    assert "rclcpp::KeepLast(5)).reliable().durability_volatile()" in adapter
+    assert "cloud_topic_,\n      reliable_pair_qos" in adapter
+    assert "synced_cloud_topic_, reliable_pair_qos" in adapter
+    assert "output_topic_, reliable_pair_qos" in adapter
+    assert "rmw_qos_profile_sensor_data" in planner
+    assert (
+        "reliable_pair_qos.reliability = "
+        "RMW_QOS_POLICY_RELIABILITY_RELIABLE"
+    ) in planner
+    assert "reliable_pair_qos.depth = 5" in planner
+    assert (
+        'cloud_sub_->subscribe(node_, "cloud", reliable_pair_qos)'
+    ) in planner
+    assert (
+        'lidar_pose_sub_->subscribe(node_, "sensor_pose", reliable_pair_qos)'
+    ) in planner
