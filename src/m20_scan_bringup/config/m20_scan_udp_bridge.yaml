@@ -29,8 +29,8 @@ scan_m20_udp_safety_bridge:
 
     command_timeout: 0.20
     body_pose_timeout: 0.50
-    sensor_pose_timeout: 0.50
-    front_cloud_timeout: 0.30
+    sensor_pose_timeout: 0.80
+    front_cloud_timeout: 0.80
     max_sensor_cloud_stamp_delta: 0.02
     cloud_stamp_history_sec: 1.0
 
