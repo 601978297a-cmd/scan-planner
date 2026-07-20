@@ -7,6 +7,7 @@ from m20_scan_bringup.safety_bridge_core import (
     FreshnessLimits,
     InputState,
     RecentStampHistory,
+    RecentStampPairTracker,
     SafetyStateMachine,
     health_reasons,
     limit_command,
@@ -143,6 +144,93 @@ def test_recent_stamp_history_prunes_expired_entries():
     history.add(received_at=9.5, stamp_ns=950)
     history.add(received_at=10.0, stamp_ns=1000)
     assert history.stamps(now=10.1) == (950, 1000)
+
+
+def test_stamp_pair_tracker_matches_both_arrival_orders():
+    stamp_first = RecentStampPairTracker(
+        retention_sec=1.0, tolerance_sec=0.02)
+    assert not stamp_first.add_cloud(received_at=10.0, stamp_ns=1_000_000_000)
+    assert stamp_first.add_pose(received_at=10.1, stamp_ns=1_010_000_000)
+    assert stamp_first.last_match_rx == 10.1
+
+    pose_first = RecentStampPairTracker(
+        retention_sec=1.0, tolerance_sec=0.02)
+    assert not pose_first.add_pose(received_at=20.0, stamp_ns=2_000_000_000)
+    assert pose_first.add_cloud(received_at=20.1, stamp_ns=2_010_000_000)
+    assert pose_first.last_match_rx == 20.1
+
+
+def test_stamp_pair_tracker_does_not_reuse_or_refresh_old_match():
+    tracker = RecentStampPairTracker(
+        retention_sec=1.0, tolerance_sec=0.02)
+    tracker.add_pose(received_at=10.0, stamp_ns=1_000_000_000)
+    assert tracker.add_cloud(received_at=10.1, stamp_ns=1_000_000_000)
+
+    assert not tracker.add_cloud(received_at=10.2, stamp_ns=1_000_000_000)
+    assert not tracker.add_pose(received_at=10.3, stamp_ns=2_000_000_000)
+    assert not tracker.add_cloud(received_at=10.4, stamp_ns=2_100_000_000)
+    assert tracker.last_match_rx == 10.1
+
+
+def test_stamp_pair_tracker_rejects_outside_tolerance_and_expired_entries():
+    tracker = RecentStampPairTracker(
+        retention_sec=1.0, tolerance_sec=0.02)
+    tracker.add_pose(received_at=8.0, stamp_ns=1_000_000_000)
+    assert not tracker.add_cloud(
+        received_at=9.1, stamp_ns=1_000_000_000)
+
+    tracker.add_pose(received_at=9.2, stamp_ns=2_000_000_000)
+    assert not tracker.add_cloud(
+        received_at=9.3, stamp_ns=2_021_000_000)
+    assert tracker.last_match_rx is None
+
+
+def test_completed_pair_health_is_fresh_then_fails_closed_when_stale():
+    inputs = InputState(
+        command_rx=10.0,
+        body_pose_rx=10.0,
+        sensor_pose_rx=10.0,
+        cloud_rx=10.0,
+        sensor_pose_stamp_ns=2_000_000_000,
+        cloud_stamp_ns=2_100_000_000,
+        sensor_cloud_pair_rx=10.0,
+    )
+    reasons = health_reasons(
+        10.1,
+        inputs,
+        FRESHNESS,
+        require_motion_info=False,
+        use_completed_pair=True,
+    )
+    assert "sensor_cloud_stamp_mismatch" not in reasons
+
+    reasons = health_reasons(
+        10.31,
+        inputs,
+        FRESHNESS,
+        require_motion_info=False,
+        use_completed_pair=True,
+    )
+    assert "sensor_cloud_stamp_mismatch" in reasons
+
+
+def test_completed_pair_health_rejects_when_no_pair_has_completed():
+    inputs = InputState(
+        command_rx=10.0,
+        body_pose_rx=10.0,
+        sensor_pose_rx=10.0,
+        cloud_rx=10.0,
+        sensor_pose_stamp_ns=1_000_000_000,
+        cloud_stamp_ns=1_100_000_000,
+    )
+    reasons = health_reasons(
+        10.1,
+        inputs,
+        FRESHNESS,
+        require_motion_info=False,
+        use_completed_pair=True,
+    )
+    assert "sensor_cloud_stamp_mismatch" in reasons
 
 
 def test_stop_sequence_requires_exact_zero_publish_count():

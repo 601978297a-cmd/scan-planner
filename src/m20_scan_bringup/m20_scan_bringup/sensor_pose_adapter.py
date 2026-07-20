@@ -10,11 +10,20 @@ from nav_msgs.msg import Odometry
 from rclpy.duration import Duration
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
+from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy
 from rclpy.qos import qos_profile_sensor_data
 from rclpy.time import Time
 from sensor_msgs.msg import PointCloud2
 from std_msgs.msg import Header
 import tf2_ros
+
+
+RELIABLE_SAFETY_QOS = QoSProfile(
+    history=HistoryPolicy.KEEP_LAST,
+    depth=5,
+    reliability=ReliabilityPolicy.RELIABLE,
+    durability=DurabilityPolicy.VOLATILE,
+)
 
 
 @dataclass
@@ -50,7 +59,7 @@ class SensorPoseAdapter(Node):
         self.pose_pub = self.create_publisher(
             Odometry, self.output_topic, qos_profile_sensor_data)
         self.cloud_stamp_pub = self.create_publisher(
-            Header, self.cloud_stamp_topic, qos_profile_sensor_data)
+            Header, self.cloud_stamp_topic, RELIABLE_SAFETY_QOS)
         self.synced_cloud_pub = self.create_publisher(
             PointCloud2, self.synced_cloud_topic, qos_profile_sensor_data)
         self.cloud_sub = self.create_subscription(
@@ -116,8 +125,8 @@ class SensorPoseAdapter(Node):
         odom.pose.pose.position.y = transform.transform.translation.y
         odom.pose.pose.position.z = transform.transform.translation.z
         odom.pose.pose.orientation = transform.transform.rotation
-        self.pose_pub.publish(odom)
         self.cloud_stamp_pub.publish(cloud_stamp)
+        self.pose_pub.publish(odom)
         self.synced_cloud_pub.publish(msg)
 
     def _warn_drop(self, msg: PointCloud2, reason: str) -> None:

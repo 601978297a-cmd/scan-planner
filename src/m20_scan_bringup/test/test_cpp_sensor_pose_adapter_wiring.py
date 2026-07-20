@@ -61,3 +61,16 @@ def test_cpp_adapter_and_planner_use_reliable_paired_cloud_qos():
     assert (
         'lidar_pose_sub_->subscribe(node_, "sensor_pose", reliable_pair_qos)'
     ) in planner
+
+
+def test_cpp_adapter_publishes_stamp_before_pose_and_cloud():
+    source = _read(
+        WORKSPACE_SRC /
+        "m20_sensor_pose_adapter_cpp/src/sensor_pose_adapter.cpp")
+
+    stamp_publish = source.index(
+        "cloud_stamp_pub_->publish(cloud_stamp);")
+    pose_publish = source.index("pose_pub_->publish(pose);")
+    cloud_publish = source.index("synced_cloud_pub_->publish(*cloud);")
+
+    assert stamp_publish < pose_publish < cloud_publish

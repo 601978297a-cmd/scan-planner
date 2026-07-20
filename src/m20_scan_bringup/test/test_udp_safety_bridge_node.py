@@ -74,6 +74,26 @@ def test_new_cloud_does_not_invalidate_pose_matching_previous_cloud():
         rclpy.shutdown()
 
 
+def test_pose_before_cloud_completes_timestamp_pair():
+    rclpy.init()
+    node = ScanM20UdpSafetyBridge()
+    try:
+        sensor_pose = Odometry()
+        sensor_pose.header.stamp.sec = 2
+        node._sensor_pose_callback(sensor_pose)
+
+        front_cloud = Header()
+        front_cloud.stamp.sec = 2
+        node._front_cloud_callback(front_cloud)
+
+        reasons = node._health_reasons(node.inputs.cloud_rx)
+        assert "sensor_cloud_stamp_mismatch" not in reasons
+        assert "sensor_cloud_stamp_missing" not in reasons
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
 def test_body_pose_odom_updates_freshness():
     rclpy.init()
     node = ScanM20UdpSafetyBridge()

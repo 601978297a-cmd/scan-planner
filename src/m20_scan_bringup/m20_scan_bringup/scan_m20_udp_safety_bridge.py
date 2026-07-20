@@ -8,6 +8,7 @@ from nav_msgs.msg import Odometry
 import rclpy
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
+from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy
 from rclpy.qos import qos_profile_sensor_data
 from std_msgs.msg import Header
 from std_srvs.srv import SetBool
@@ -25,11 +26,19 @@ from .safety_bridge_core import (
     CommandLimits,
     FreshnessLimits,
     InputState,
-    RecentStampHistory,
+    RecentStampPairTracker,
     SafetyStateMachine,
     health_reasons,
     limit_command,
     slew_command,
+)
+
+
+RELIABLE_SAFETY_QOS = QoSProfile(
+    history=HistoryPolicy.KEEP_LAST,
+    depth=5,
+    reliability=ReliabilityPolicy.RELIABLE,
+    durability=DurabilityPolicy.VOLATILE,
 )
 
 
@@ -121,8 +130,10 @@ class ScanM20UdpSafetyBridge(Node):
             "arm_service", "/scan/arm_udp_control").value
 
         self.inputs = InputState()
-        self.cloud_stamp_history = RecentStampHistory(
-            retention_sec=self.cloud_stamp_history_sec)
+        self.sensor_cloud_pairs = RecentStampPairTracker(
+            retention_sec=self.cloud_stamp_history_sec,
+            tolerance_sec=self.freshness_limits.max_sensor_cloud_stamp_delta,
+        )
         self.last_command = Command()
         self.preview_command = Command()
         self.preview_axis = UdpAxis()
@@ -146,7 +157,8 @@ class ScanM20UdpSafetyBridge(Node):
         self.status_pub = self.create_publisher(
             DiagnosticArray, self.status_topic, 10)
         self.command_sub = self.create_subscription(
-            Twist, self.command_topic, self._command_callback, 10)
+            Twist, self.command_topic, self._command_callback,
+            RELIABLE_SAFETY_QOS)
         self.body_pose_sub = self.create_subscription(
             Odometry,
             self.body_pose_topic,
@@ -163,7 +175,7 @@ class ScanM20UdpSafetyBridge(Node):
             Header,
             self.front_cloud_stamp_topic,
             self._front_cloud_callback,
-            qos_profile_sensor_data,
+            RELIABLE_SAFETY_QOS,
         )
         self.arm_service = self.create_service(
             SetBool, self.arm_service_name, self._handle_arm)
@@ -207,15 +219,22 @@ class ScanM20UdpSafetyBridge(Node):
         self.inputs.body_pose_rx = time.monotonic()
 
     def _sensor_pose_callback(self, msg: Odometry) -> None:
-        self.inputs.sensor_pose_rx = time.monotonic()
-        self.inputs.sensor_pose_stamp_ns = self._stamp_ns(msg.header.stamp)
+        now = time.monotonic()
+        stamp_ns = self._stamp_ns(msg.header.stamp)
+        self.inputs.sensor_pose_rx = now
+        self.inputs.sensor_pose_stamp_ns = stamp_ns
+        self.sensor_cloud_pairs.add_pose(now, stamp_ns)
+        self.inputs.sensor_cloud_pair_rx = (
+            self.sensor_cloud_pairs.last_match_rx)
 
     def _front_cloud_callback(self, msg: Header) -> None:
         now = time.monotonic()
         stamp_ns = self._stamp_ns(msg.stamp)
         self.inputs.cloud_rx = now
         self.inputs.cloud_stamp_ns = stamp_ns
-        self.cloud_stamp_history.add(now, stamp_ns)
+        self.sensor_cloud_pairs.add_cloud(now, stamp_ns)
+        self.inputs.sensor_cloud_pair_rx = (
+            self.sensor_cloud_pairs.last_match_rx)
 
     def _handle_arm(self, request: SetBool.Request, response: SetBool.Response):
         if not request.data:
@@ -356,7 +375,7 @@ class ScanM20UdpSafetyBridge(Node):
             self.inputs,
             self.freshness_limits,
             require_motion_info=False,
-            cloud_stamp_history_ns=self.cloud_stamp_history.stamps(now),
+            use_completed_pair=True,
         )
 
     def _udp_health_reasons(self, now) -> list[str]:

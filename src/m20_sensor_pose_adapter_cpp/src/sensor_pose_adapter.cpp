@@ -66,11 +66,10 @@ public:
 
     const auto reliable_pair_qos =
       rclcpp::QoS(rclcpp::KeepLast(5)).reliable().durability_volatile();
-    const auto stamp_qos = rclcpp::SensorDataQoS();
     pose_pub_ = create_publisher<nav_msgs::msg::Odometry>(
       output_topic_, reliable_pair_qos);
     cloud_stamp_pub_ = create_publisher<std_msgs::msg::Header>(
-      cloud_stamp_topic_, stamp_qos);
+      cloud_stamp_topic_, reliable_pair_qos);
     synced_cloud_pub_ = create_publisher<PointCloud>(
       synced_cloud_topic_, reliable_pair_qos);
 
@@ -191,8 +190,8 @@ private:
     pose.pose.pose.position.z = transform.transform.translation.z;
     pose.pose.pose.orientation = transform.transform.rotation;
 
-    pose_pub_->publish(pose);
     cloud_stamp_pub_->publish(cloud_stamp);
+    pose_pub_->publish(pose);
     synced_cloud_pub_->publish(*cloud);
   }
 

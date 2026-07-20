@@ -32,6 +32,13 @@ RELIABLE_QOS = QoSProfile(
     durability=DurabilityPolicy.VOLATILE,
 )
 
+RELIABLE_SAFETY_QOS = QoSProfile(
+    history=HistoryPolicy.KEEP_LAST,
+    depth=5,
+    reliability=ReliabilityPolicy.RELIABLE,
+    durability=DurabilityPolicy.VOLATILE,
+)
+
 
 class ScanM20SafetyBridge(Node):
     def __init__(self):
@@ -91,7 +98,8 @@ class ScanM20SafetyBridge(Node):
         self.preview_pub = self.create_publisher(Twist, self.preview_topic, 10)
         self.status_pub = self.create_publisher(DiagnosticArray, self.status_topic, 10)
         self.command_sub = self.create_subscription(
-            Twist, self.command_topic, self._command_callback, 10)
+            Twist, self.command_topic, self._command_callback,
+            RELIABLE_SAFETY_QOS)
         self.body_pose_sub = self.create_subscription(
             Odometry, self.body_pose_topic, self._body_pose_callback, qos_profile_sensor_data)
         self.sensor_pose_sub = self.create_subscription(
@@ -100,7 +108,7 @@ class ScanM20SafetyBridge(Node):
             Header,
             self.front_cloud_stamp_topic,
             self._front_cloud_callback,
-            qos_profile_sensor_data,
+            RELIABLE_SAFETY_QOS,
         )
         self.arm_service = self.create_service(SetBool, "/scan/arm_nav_cmd", self._handle_arm)
 

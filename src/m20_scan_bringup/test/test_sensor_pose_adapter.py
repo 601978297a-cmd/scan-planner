@@ -15,6 +15,17 @@ class CapturingPublisher:
         self.messages.append(message)
 
 
+class OrderedCapturingPublisher(CapturingPublisher):
+    def __init__(self, name, events):
+        super().__init__()
+        self.name = name
+        self.events = events
+
+    def publish(self, message):
+        self.events.append(self.name)
+        super().publish(message)
+
+
 class FixedTransformBuffer:
     def __init__(self, transform):
         self.transform = transform
@@ -99,6 +110,21 @@ def test_cloud_is_published_with_matching_pose_after_tf_arrives(monkeypatch):
         assert pose.child_frame_id == "rslidar_front"
         assert pose.pose.pose.position.x == 0.32
         assert pose.pose.pose.orientation.w == 1.0
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+def test_synced_pair_publishes_stamp_before_pose_and_cloud(monkeypatch):
+    node = _make_node(monkeypatch)
+    events = []
+    node.pose_pub = OrderedCapturingPublisher("pose", events)
+    node.cloud_stamp_pub = OrderedCapturingPublisher("stamp", events)
+    node.synced_cloud_pub = OrderedCapturingPublisher("cloud", events)
+    try:
+        node._publish_synced_pair(_make_cloud(), _make_transform())
+
+        assert events == ["stamp", "pose", "cloud"]
     finally:
         node.destroy_node()
         rclpy.shutdown()

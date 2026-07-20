@@ -31,6 +31,7 @@ class InputState:
     motion_info_rx: Optional[float] = None
     sensor_pose_stamp_ns: Optional[int] = None
     cloud_stamp_ns: Optional[int] = None
+    sensor_cloud_pair_rx: Optional[float] = None
 
 
 @dataclass(frozen=True)
@@ -99,6 +100,75 @@ class RecentStampHistory:
             self._entries.popleft()
 
 
+class RecentStampPairTracker:
+    def __init__(
+        self,
+        retention_sec: float,
+        tolerance_sec: float,
+        max_entries: int = 64,
+    ) -> None:
+        if retention_sec <= 0.0:
+            raise ValueError("retention_sec must be positive")
+        if tolerance_sec < 0.0:
+            raise ValueError("tolerance_sec must be nonnegative")
+        if max_entries <= 0:
+            raise ValueError("max_entries must be positive")
+        self.retention_sec = float(retention_sec)
+        self.tolerance_ns = int(float(tolerance_sec) * 1e9)
+        self._pose_entries = deque(maxlen=int(max_entries))
+        self._cloud_entries = deque(maxlen=int(max_entries))
+        self.last_match_rx: Optional[float] = None
+
+    def add_pose(self, received_at: float, stamp_ns: int) -> bool:
+        return self._add(
+            received_at,
+            stamp_ns,
+            own_entries=self._pose_entries,
+            opposite_entries=self._cloud_entries,
+        )
+
+    def add_cloud(self, received_at: float, stamp_ns: int) -> bool:
+        return self._add(
+            received_at,
+            stamp_ns,
+            own_entries=self._cloud_entries,
+            opposite_entries=self._pose_entries,
+        )
+
+    def _add(
+        self,
+        received_at: float,
+        stamp_ns: int,
+        own_entries,
+        opposite_entries,
+    ) -> bool:
+        received_at = float(received_at)
+        stamp_ns = int(stamp_ns)
+        self._prune(received_at)
+
+        best_index = None
+        best_delta_ns = self.tolerance_ns + 1
+        for index, (_, opposite_stamp_ns) in enumerate(opposite_entries):
+            delta_ns = abs(stamp_ns - opposite_stamp_ns)
+            if delta_ns <= self.tolerance_ns and delta_ns < best_delta_ns:
+                best_index = index
+                best_delta_ns = delta_ns
+
+        if best_index is not None:
+            del opposite_entries[best_index]
+            self.last_match_rx = received_at
+            return True
+
+        own_entries.append((received_at, stamp_ns))
+        return False
+
+    def _prune(self, now: float) -> None:
+        cutoff = float(now) - self.retention_sec
+        for entries in (self._pose_entries, self._cloud_entries):
+            while entries and entries[0][0] < cutoff:
+                entries.popleft()
+
+
 def limit_command(vx: float, wz: float, limits: CommandLimits) -> Command:
     vx = vx if math.isfinite(vx) else 0.0
     wz = wz if math.isfinite(wz) else 0.0
@@ -127,6 +197,7 @@ def health_reasons(
     limits: FreshnessLimits,
     require_motion_info: bool,
     cloud_stamp_history_ns: Optional[Iterable[int]] = None,
+    use_completed_pair: bool = False,
 ) -> list[str]:
     checks = [
         ("command", inputs.command_rx, limits.command),
@@ -144,17 +215,20 @@ def health_reasons(
         elif now - received_at > timeout:
             reasons.append(f"{name}_stale")
 
-    if cloud_stamp_history_ns is None:
-        cloud_stamps = (
-            () if inputs.cloud_stamp_ns is None
-            else (inputs.cloud_stamp_ns,)
-        )
-    else:
-        cloud_stamps = tuple(cloud_stamp_history_ns)
-
-    if inputs.sensor_pose_stamp_ns is None or not cloud_stamps:
+    if inputs.sensor_pose_stamp_ns is None or inputs.cloud_stamp_ns is None:
         reasons.append("sensor_cloud_stamp_missing")
+    elif use_completed_pair:
+        pair_timeout = min(limits.sensor_pose, limits.cloud)
+        if (
+            inputs.sensor_cloud_pair_rx is None
+            or now - inputs.sensor_cloud_pair_rx > pair_timeout
+        ):
+            reasons.append("sensor_cloud_stamp_mismatch")
     else:
+        if cloud_stamp_history_ns is None:
+            cloud_stamps = (inputs.cloud_stamp_ns,)
+        else:
+            cloud_stamps = tuple(cloud_stamp_history_ns)
         tolerance_ns = limits.max_sensor_cloud_stamp_delta * 1e9
         matches_recent_cloud = any(
             abs(inputs.sensor_pose_stamp_ns - cloud_stamp_ns) <= tolerance_ns
