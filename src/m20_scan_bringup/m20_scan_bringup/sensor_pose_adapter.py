@@ -8,6 +8,7 @@ import rclpy
 from builtin_interfaces.msg import Time as TimeMsg
 from nav_msgs.msg import Odometry
 from rclpy.duration import Duration
+from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from rclpy.time import Time
@@ -90,7 +91,13 @@ class SensorPoseAdapter(Node):
                     self._stamp_to_time(msg.header.stamp),
                     timeout=Duration(seconds=0.0),
                 )
-            except Exception:
+            except Exception as exc:
+                self.get_logger().warn(
+                    f"TF lookup pending for cloud at "
+                    f"{msg.header.stamp.sec}.{msg.header.stamp.nanosec:09d}: "
+                    f"{type(exc).__name__}: {exc}",
+                    throttle_duration_sec=2.0,
+                )
                 return
 
             self.pending_clouds.popleft()
@@ -130,9 +137,12 @@ class SensorPoseAdapter(Node):
 def main(args=None):
     rclpy.init(args=args)
     node = SensorPoseAdapter()
+    executor = MultiThreadedExecutor(num_threads=2)
+    executor.add_node(node)
     try:
-        rclpy.spin(node)
+        executor.spin()
     finally:
+        executor.shutdown()
         node.destroy_node()
         rclpy.shutdown()
 

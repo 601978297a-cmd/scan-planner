@@ -3,6 +3,7 @@ from sensor_msgs.msg import PointCloud2
 
 import rclpy
 
+from m20_scan_bringup import sensor_pose_adapter as adapter_module
 from m20_scan_bringup.sensor_pose_adapter import SensorPoseAdapter
 
 
@@ -149,3 +150,47 @@ def test_cloud_is_dropped_after_tf_wait_timeout(monkeypatch):
     finally:
         node.destroy_node()
         rclpy.shutdown()
+
+
+def test_main_uses_two_thread_executor(monkeypatch):
+    events = []
+
+    class FakeNode:
+        def destroy_node(self):
+            events.append("destroy_node")
+
+    class FakeExecutor:
+        def __init__(self, *, num_threads):
+            events.append(("executor", num_threads))
+
+        def add_node(self, node):
+            events.append(("add_node", node))
+
+        def spin(self):
+            events.append("executor_spin")
+
+        def shutdown(self):
+            events.append("executor_shutdown")
+
+    node = FakeNode()
+    monkeypatch.setattr(
+        adapter_module, "MultiThreadedExecutor", FakeExecutor, raising=False)
+    monkeypatch.setattr(adapter_module, "SensorPoseAdapter", lambda: node)
+    monkeypatch.setattr(
+        adapter_module.rclpy, "init", lambda args=None: events.append(("init", args)))
+    monkeypatch.setattr(
+        adapter_module.rclpy, "spin", lambda _node: events.append("rclpy_spin"))
+    monkeypatch.setattr(
+        adapter_module.rclpy, "shutdown", lambda: events.append("shutdown"))
+
+    adapter_module.main(args=["--test"])
+
+    assert events == [
+        ("init", ["--test"]),
+        ("executor", 2),
+        ("add_node", node),
+        "executor_spin",
+        "executor_shutdown",
+        "destroy_node",
+        "shutdown",
+    ]
