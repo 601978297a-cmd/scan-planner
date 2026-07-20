@@ -18,6 +18,20 @@ def generate_launch_description():
     udp_bridge_yaml = os.path.join(
         bringup_share, "config", "m20_scan_udp_bridge.yaml")
     control_backend = LaunchConfiguration("control_backend")
+    sensor_pose_adapter_backend = LaunchConfiguration(
+        "sensor_pose_adapter_backend")
+    sensor_pose_adapter_parameters = [{
+        "target_frame": "map",
+        "source_frame": "rslidar_front",
+        "cloud_topic": "/rslidar_points_front",
+        "output_topic": "/scan/sensor_pose",
+        "cloud_stamp_topic": "/scan/front_cloud_stamp",
+        "synced_cloud_topic": "/scan/front_cloud_synced",
+        "max_tf_wait_sec": 0.5,
+        "retry_period_sec": 0.02,
+        "max_queue_size": 16,
+        "use_sim_time": False,
+    }]
 
     return LaunchDescription([
         DeclareLaunchArgument(
@@ -26,23 +40,31 @@ def generate_launch_description():
             choices=["nav_cmd", "udp"],
             description="Select exactly one guarded M20 control backend.",
         ),
+        DeclareLaunchArgument(
+            "sensor_pose_adapter_backend",
+            default_value="cpp",
+            choices=["cpp", "python"],
+            description="Select the concurrent C++ adapter or Python fallback.",
+        ),
+        Node(
+            package="m20_sensor_pose_adapter_cpp",
+            executable="sensor_pose_adapter_cpp",
+            name="sensor_pose_adapter",
+            output="screen",
+            parameters=sensor_pose_adapter_parameters,
+            condition=IfCondition(PythonExpression([
+                "'", sensor_pose_adapter_backend, "' == 'cpp'",
+            ])),
+        ),
         Node(
             package="m20_scan_bringup",
             executable="sensor_pose_adapter",
             name="sensor_pose_adapter",
             output="screen",
-            parameters=[{
-                "target_frame": "map",
-                "source_frame": "rslidar_front",
-                "cloud_topic": "/rslidar_points_front",
-                "output_topic": "/scan/sensor_pose",
-                "cloud_stamp_topic": "/scan/front_cloud_stamp",
-                "synced_cloud_topic": "/scan/front_cloud_synced",
-                "max_tf_wait_sec": 0.5,
-                "retry_period_sec": 0.02,
-                "max_queue_size": 16,
-                "use_sim_time": False,
-            }],
+            parameters=sensor_pose_adapter_parameters,
+            condition=IfCondition(PythonExpression([
+                "'", sensor_pose_adapter_backend, "' == 'python'",
+            ])),
         ),
         Node(
             package="scan_planner",
