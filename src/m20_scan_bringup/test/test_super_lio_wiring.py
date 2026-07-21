@@ -75,6 +75,8 @@ def test_m20_navigation_is_gated_by_udp_arm_state():
     assert "fsm.require_navigation_enable: true" in planner_config
     assert "require_navigation_enable: true" in controller_config
     assert "navigation_enabled_topic: /scan/navigation_enabled" in udp_config
+    assert "auto_arm_enabled: true" in udp_config
+    assert "auto_arm_stable_sec: 2.0" in udp_config
     assert '"enable_udp_output"' in launch
     assert "ParameterValue(" in launch
     assert "navigationEnabledCallback" in fsm_source

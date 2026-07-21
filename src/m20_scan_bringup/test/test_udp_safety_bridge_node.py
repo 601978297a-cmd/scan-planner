@@ -57,6 +57,125 @@ def test_navigation_enable_tracks_arm_and_disarm():
         assert disarm_response.success
         assert node.state_machine.state is BridgeState.STOPPING
         assert node.navigation_enabled is False
+        assert node.manual_disarm_latched is True
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+def test_auto_arm_waits_for_continuous_stability_window():
+    rclpy.init()
+    node = ScanM20UdpSafetyBridge()
+    try:
+        node.auto_arm_enabled = True
+        node.auto_arm_stable_sec = 2.0
+        node.enable_udp_output = True
+
+        assert not node._update_auto_arm(10.0, [])
+        assert not node._update_auto_arm(11.9, [])
+        assert node.state_machine.state is BridgeState.DISARMED
+        assert node._update_auto_arm(12.0, [])
+        assert node.state_machine.state is BridgeState.ARMED
+        assert node.navigation_enabled is True
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+def test_auto_arm_blocker_resets_stability_window():
+    rclpy.init()
+    node = ScanM20UdpSafetyBridge()
+    try:
+        node.auto_arm_enabled = True
+        node.auto_arm_stable_sec = 2.0
+        node.enable_udp_output = True
+
+        assert not node._update_auto_arm(10.0, [])
+        assert not node._update_auto_arm(11.0, ["body_pose_stale"])
+        assert node.auto_arm_ready_since is None
+        assert not node._update_auto_arm(12.0, [])
+        assert not node._update_auto_arm(13.9, [])
+        assert node._update_auto_arm(14.0, [])
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+def test_manual_disarm_latch_prevents_auto_arm():
+    rclpy.init()
+    node = ScanM20UdpSafetyBridge()
+    try:
+        node.auto_arm_enabled = True
+        node.enable_udp_output = True
+
+        request = SetBool.Request()
+        request.data = False
+        response = node._handle_arm(request, SetBool.Response())
+        assert response.success
+        assert node.manual_disarm_latched is True
+        assert not node._update_auto_arm(10.0, [])
+        assert not node._update_auto_arm(20.0, [])
+        assert node.state_machine.state is BridgeState.DISARMED
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+def test_only_successful_manual_arm_clears_manual_latch():
+    rclpy.init()
+    node = ScanM20UdpSafetyBridge()
+    try:
+        node.manual_disarm_latched = True
+        node._arm_blockers = lambda: ["body_pose_stale"]
+        request = SetBool.Request()
+        request.data = True
+        response = node._handle_arm(request, SetBool.Response())
+        assert not response.success
+        assert node.manual_disarm_latched is True
+
+        node._arm_blockers = lambda: []
+        response = node._handle_arm(request, SetBool.Response())
+        assert response.success
+        assert node.manual_disarm_latched is False
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+def test_automatic_stop_can_rearm_without_restoring_manual_permission():
+    rclpy.init()
+    node = ScanM20UdpSafetyBridge()
+    try:
+        node.auto_arm_enabled = True
+        node.auto_arm_stable_sec = 2.0
+        node.enable_udp_output = True
+        assert not node._update_auto_arm(10.0, [])
+        assert node._update_auto_arm(12.0, [])
+
+        node.stop_cycles = 1
+        node._begin_stop("body_pose_stale")
+        assert node.navigation_enabled is False
+        assert node.manual_disarm_latched is False
+        assert node.state_machine.record_stop_publish()
+        assert node.state_machine.state is BridgeState.DISARMED
+
+        assert not node._update_auto_arm(20.0, [])
+        assert node._update_auto_arm(22.0, [])
+        assert node.navigation_enabled is True
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+def test_dry_run_never_auto_arms():
+    rclpy.init()
+    node = ScanM20UdpSafetyBridge()
+    try:
+        node.auto_arm_enabled = True
+        node.auto_arm_stable_sec = 0.0
+        assert not node.enable_udp_output
+        assert not node._update_auto_arm(10.0, [])
+        assert node.state_machine.state is BridgeState.DISARMED
     finally:
         node.destroy_node()
         rclpy.shutdown()

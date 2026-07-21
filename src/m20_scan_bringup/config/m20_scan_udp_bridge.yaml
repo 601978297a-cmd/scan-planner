@@ -14,6 +14,8 @@ scan_m20_udp_safety_bridge:
     heartbeat_rate: 1.0
     heartbeat_timeout: 2.0
     stop_cycles: 20
+    auto_arm_enabled: true
+    auto_arm_stable_sec: 2.0
 
     max_vx: 0.05
     max_wz: 0.20

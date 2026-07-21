@@ -67,6 +67,13 @@ class ScanM20UdpSafetyBridge(Node):
         self.heartbeat_timeout = float(
             self.declare_parameter("heartbeat_timeout", 2.0).value)
         self.stop_cycles = int(self.declare_parameter("stop_cycles", 20).value)
+        self.auto_arm_enabled = bool(
+            self.declare_parameter("auto_arm_enabled", False).value)
+        self.auto_arm_stable_sec = max(
+            0.0,
+            float(self.declare_parameter(
+                "auto_arm_stable_sec", 2.0).value),
+        )
         self.cloud_stamp_history_sec = float(
             self.declare_parameter(
                 "cloud_stamp_history_sec", 1.0).value)
@@ -162,6 +169,8 @@ class ScanM20UdpSafetyBridge(Node):
         self.udp_link = None
         self.ever_armed = False
         self.navigation_enabled = False
+        self.manual_disarm_latched = False
+        self.auto_arm_ready_since = None
 
         self.preview_pub = self.create_publisher(Twist, self.preview_topic, 10)
         self.status_pub = self.create_publisher(
@@ -201,7 +210,8 @@ class ScanM20UdpSafetyBridge(Node):
         self.get_logger().info(
             f"M20 UDP safety bridge started in {mode}; "
             f"target={self.udp_target_host}:{self.udp_target_port}; "
-            f"motion_udp_enabled={self.enable_udp_output}")
+            f"motion_udp_enabled={self.enable_udp_output}; "
+            f"auto_arm_enabled={self.auto_arm_enabled}")
 
     def _initialize_udp_link(self) -> bool:
         if self.udp_link is not None:
@@ -251,6 +261,8 @@ class ScanM20UdpSafetyBridge(Node):
 
     def _handle_arm(self, request: SetBool.Request, response: SetBool.Response):
         if not request.data:
+            self.manual_disarm_latched = True
+            self.auto_arm_ready_since = None
             if self.state_machine.state is BridgeState.DISARMED:
                 self._publish_navigation_enabled(False)
                 response.success = True
@@ -267,21 +279,29 @@ class ScanM20UdpSafetyBridge(Node):
             response.message = ",".join(reasons)
             return response
 
-        if not self.state_machine.arm():
+        if not self._arm_bridge("manual"):
             response.success = False
             response.message = "bridge_not_disarmed"
             return response
 
+        self.manual_disarm_latched = False
+        response.success = True
+        response.message = "armed"
+        return response
+
+    def _arm_bridge(self, source: str) -> bool:
+        if not self.state_machine.arm():
+            return False
         self.ever_armed = True
         self.stop_reason = ""
         self.last_command_send = None
+        self.auto_arm_ready_since = None
         self._publish_navigation_enabled(True)
-        response.success = True
-        response.message = "armed"
-        self.get_logger().warn("M20 UDP motion output ARMED")
-        return response
+        self.get_logger().warn(
+            f"M20 UDP motion output ARMED ({source})")
+        return True
 
-    def _arm_blockers(self, now=None) -> list[str]:
+    def _arm_blockers(self, now=None, force_conflict_check=True) -> list[str]:
         now = time.monotonic() if now is None else now
         blockers = []
         if not self.enable_udp_output:
@@ -293,7 +313,7 @@ class ScanM20UdpSafetyBridge(Node):
         blockers.extend(self._health_reasons(now))
         if self.enable_udp_output:
             blockers.extend(self._udp_health_reasons(now))
-            self._refresh_conflicts(now, force=True)
+            self._refresh_conflicts(now, force=force_conflict_check)
             if self.conflicting_processes:
                 blockers.append(
                     "conflicting_processes:" + "|".join(
@@ -313,6 +333,35 @@ class ScanM20UdpSafetyBridge(Node):
         )):
             blockers.append("command_not_zero")
         return blockers
+
+    def _update_auto_arm(self, now: float, blockers: list[str]) -> bool:
+        eligible = (
+            self.auto_arm_enabled
+            and self.enable_udp_output
+            and not self.manual_disarm_latched
+            and self.state_machine.state is BridgeState.DISARMED
+        )
+        if not eligible:
+            self.auto_arm_ready_since = None
+            return False
+
+        if blockers:
+            if self.auto_arm_ready_since is not None:
+                self.get_logger().info(
+                    "Automatic arm stability window cancelled: "
+                    + ",".join(blockers))
+            self.auto_arm_ready_since = None
+            return False
+
+        if self.auto_arm_ready_since is None:
+            self.auto_arm_ready_since = now
+            self.get_logger().info(
+                "Automatic arm stability window started")
+
+        if now - self.auto_arm_ready_since < self.auto_arm_stable_sec:
+            return False
+
+        return self._arm_bridge("automatic")
 
     def _tick(self) -> None:
         now = time.monotonic()
@@ -380,6 +429,19 @@ class ScanM20UdpSafetyBridge(Node):
                         self.conflicting_processes))
         else:
             status_reasons.append("enable_udp_output_false")
+        auto_arm_blockers = []
+        if (
+            self.auto_arm_enabled
+            and self.enable_udp_output
+            and not self.manual_disarm_latched
+            and self.state_machine.state is BridgeState.DISARMED
+        ):
+            auto_arm_blockers = self._arm_blockers(
+                now, force_conflict_check=False)
+        self._update_auto_arm(
+            now,
+            auto_arm_blockers,
+        )
         if self._rate_due(now, self.last_status_publish, self.status_rate):
             self._publish_status(status_reasons)
             self.last_status_publish = now
@@ -473,6 +535,7 @@ class ScanM20UdpSafetyBridge(Node):
         self.last_conflict_check = now
 
     def _begin_stop(self, reason: str) -> None:
+        self.auto_arm_ready_since = None
         if self.state_machine.state is BridgeState.DISARMED:
             self._publish_navigation_enabled(False)
             return
@@ -504,6 +567,10 @@ class ScanM20UdpSafetyBridge(Node):
         heartbeat_age = ""
         if self.last_heartbeat_ack is not None:
             heartbeat_age = f"{time.monotonic() - self.last_heartbeat_ack:.3f}"
+        auto_arm_ready_age = ""
+        if self.auto_arm_ready_since is not None:
+            auto_arm_ready_age = (
+                f"{time.monotonic() - self.auto_arm_ready_since:.3f}")
         status.values = [
             KeyValue(key="state", value=self.state_machine.state.value),
             KeyValue(
@@ -512,6 +579,15 @@ class ScanM20UdpSafetyBridge(Node):
             KeyValue(
                 key="navigation_enabled",
                 value=str(self.navigation_enabled).lower()),
+            KeyValue(
+                key="auto_arm_enabled",
+                value=str(self.auto_arm_enabled).lower()),
+            KeyValue(
+                key="manual_disarm_latched",
+                value=str(self.manual_disarm_latched).lower()),
+            KeyValue(
+                key="auto_arm_ready_age_sec",
+                value=auto_arm_ready_age),
             KeyValue(
                 key="udp_target",
                 value=f"{self.udp_target_host}:{self.udp_target_port}"),
