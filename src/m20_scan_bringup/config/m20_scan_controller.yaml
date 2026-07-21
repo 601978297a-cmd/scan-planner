@@ -1,6 +1,8 @@
 closed_loop_controller:
   ros__parameters:
     use_sim_time: false
+    require_navigation_enable: true
+    navigation_enabled_topic: /scan/navigation_enabled
     time_forward: 0.5
     heading_error_threshold: 0.6
     kp_pos: 0.5

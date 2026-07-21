@@ -10,7 +10,7 @@ from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, HistoryPolicy, QoSProfile, ReliabilityPolicy
 from rclpy.qos import qos_profile_sensor_data
-from std_msgs.msg import Header
+from std_msgs.msg import Bool, Header
 from std_srvs.srv import SetBool
 
 from .m20_udp_protocol import (
@@ -39,6 +39,13 @@ RELIABLE_SAFETY_QOS = QoSProfile(
     depth=5,
     reliability=ReliabilityPolicy.RELIABLE,
     durability=DurabilityPolicy.VOLATILE,
+)
+
+NAVIGATION_STATE_QOS = QoSProfile(
+    history=HistoryPolicy.KEEP_LAST,
+    depth=1,
+    reliability=ReliabilityPolicy.RELIABLE,
+    durability=DurabilityPolicy.TRANSIENT_LOCAL,
 )
 
 
@@ -126,6 +133,8 @@ class ScanM20UdpSafetyBridge(Node):
             "preview_topic", "/scan/udp_axis_preview").value
         self.status_topic = self.declare_parameter(
             "status_topic", "/scan/udp_safety_status").value
+        self.navigation_enabled_topic = self.declare_parameter(
+            "navigation_enabled_topic", "/scan/navigation_enabled").value
         self.arm_service_name = self.declare_parameter(
             "arm_service", "/scan/arm_udp_control").value
 
@@ -152,10 +161,13 @@ class ScanM20UdpSafetyBridge(Node):
         self.udp_error = ""
         self.udp_link = None
         self.ever_armed = False
+        self.navigation_enabled = False
 
         self.preview_pub = self.create_publisher(Twist, self.preview_topic, 10)
         self.status_pub = self.create_publisher(
             DiagnosticArray, self.status_topic, 10)
+        self.navigation_enabled_pub = self.create_publisher(
+            Bool, self.navigation_enabled_topic, NAVIGATION_STATE_QOS)
         self.command_sub = self.create_subscription(
             Twist, self.command_topic, self._command_callback,
             RELIABLE_SAFETY_QOS)
@@ -179,6 +191,7 @@ class ScanM20UdpSafetyBridge(Node):
         )
         self.arm_service = self.create_service(
             SetBool, self.arm_service_name, self._handle_arm)
+        self._publish_navigation_enabled(False)
 
         if self.enable_udp_output:
             self._initialize_udp_link()
@@ -239,6 +252,7 @@ class ScanM20UdpSafetyBridge(Node):
     def _handle_arm(self, request: SetBool.Request, response: SetBool.Response):
         if not request.data:
             if self.state_machine.state is BridgeState.DISARMED:
+                self._publish_navigation_enabled(False)
                 response.success = True
                 response.message = "already disarmed"
             else:
@@ -261,6 +275,7 @@ class ScanM20UdpSafetyBridge(Node):
         self.ever_armed = True
         self.stop_reason = ""
         self.last_command_send = None
+        self._publish_navigation_enabled(True)
         response.success = True
         response.message = "armed"
         self.get_logger().warn("M20 UDP motion output ARMED")
@@ -459,11 +474,19 @@ class ScanM20UdpSafetyBridge(Node):
 
     def _begin_stop(self, reason: str) -> None:
         if self.state_machine.state is BridgeState.DISARMED:
+            self._publish_navigation_enabled(False)
             return
+        self._publish_navigation_enabled(False)
         if self.state_machine.state is not BridgeState.STOPPING:
             self.stop_reason = reason
             self.get_logger().error(f"Disarming M20 UDP output: {reason}")
         self.state_machine.begin_stop(self.stop_cycles)
+
+    def _publish_navigation_enabled(self, enabled: bool) -> None:
+        self.navigation_enabled = enabled
+        msg = Bool()
+        msg.data = enabled
+        self.navigation_enabled_pub.publish(msg)
 
     def _publish_preview(self) -> None:
         msg = Twist()
@@ -486,6 +509,9 @@ class ScanM20UdpSafetyBridge(Node):
             KeyValue(
                 key="enable_udp_output",
                 value=str(self.enable_udp_output).lower()),
+            KeyValue(
+                key="navigation_enabled",
+                value=str(self.navigation_enabled).lower()),
             KeyValue(
                 key="udp_target",
                 value=f"{self.udp_target_host}:{self.udp_target_port}"),
@@ -515,6 +541,7 @@ class ScanM20UdpSafetyBridge(Node):
         return stamp.sec * 1_000_000_000 + stamp.nanosec
 
     def destroy_node(self):
+        self._publish_navigation_enabled(False)
         if self.udp_link is not None:
             if self.ever_armed:
                 period = 1.0 / max(self.timer_rate, 1.0)

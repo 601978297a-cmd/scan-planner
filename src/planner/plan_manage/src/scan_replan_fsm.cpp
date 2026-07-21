@@ -46,6 +46,12 @@ namespace scan_planner
     self_double_cylinder_offset_ = load_parameter<double>(node_, "grid_map.double_cylinder_offset", 0.0);
     body_height_ = load_parameter<double>(node_, "grid_map.body_height", 0.4);
     self_inflation_frame_id_ = load_parameter<std::string>(node_, "grid_map.frame_id", "world");
+    require_navigation_enable_ = load_parameter<bool>(
+        node_, "fsm.require_navigation_enable", false);
+    const auto navigation_enabled_topic = load_parameter<std::string>(
+        node_, "fsm.navigation_enabled_topic", "/scan/navigation_enabled");
+    navigation_enabled_ = !require_navigation_enable_;
+    navigation_enabled_at_ = node_->now();
 
     if (navi_mode_ == NAVI_MODE::PRESET_TARGET)
     {
@@ -62,7 +68,7 @@ namespace scan_planner
     }
 
     /* initialize main modules */
-    visualization_.reset(new PlanningVisualization(node_));
+    visualization_.reset(new PlanningVisualization(node_, self_inflation_frame_id_));
     planner_manager_.reset(new SCANPlannerManager);
     planner_manager_->initPlanModules(node_, visualization_);
 
@@ -77,6 +83,12 @@ namespace scan_planner
     go2_execution_frozen_sub_ = node_->create_subscription<std_msgs::msg::Bool>(
         "planning/go2_execution_frozen", 10,
         std::bind(&SCANReplanFSM::go2ExecutionFrozenCallback, this, std::placeholders::_1));
+    if (require_navigation_enable_)
+      navigation_enabled_sub_ = node_->create_subscription<std_msgs::msg::Bool>(
+          navigation_enabled_topic,
+          rclcpp::QoS(1).reliable().transient_local(),
+          std::bind(&SCANReplanFSM::navigationEnabledCallback, this,
+                    std::placeholders::_1));
 
     bspline_pub_ = node_->create_publisher<scan_planner_msgs::msg::Bspline>("planning/bspline", 10);
     data_disp_pub_ = node_->create_publisher<scan_planner_msgs::msg::DataDisp>("planning/data_display", 100);
@@ -123,6 +135,8 @@ namespace scan_planner
   void SCANReplanFSM::rvizGoalCallback(const geometry_msgs::msg::PoseStamped::ConstSharedPtr &msg)
   {
     if (!msg)
+      return;
+    if (!navigationRequestAllowed(msg->header.stamp, "RViz goal"))
       return;
 
     if (!rviz_height_ready_)
@@ -344,6 +358,8 @@ namespace scan_planner
                            "Received empty initial_path; ignoring");
       return;
     }
+    if (!navigationRequestAllowed(msg->header.stamp, "reference path"))
+      return;
 
     trigger_ = true;
 
@@ -406,7 +422,7 @@ namespace scan_planner
 
     have_odom_ = true;
     publishSelfInflationMarker();
-    if (navi_mode_ == NAVI_MODE::PRESET_TARGET && !preset_started_)
+    if (navigation_enabled_ && navi_mode_ == NAVI_MODE::PRESET_TARGET && !preset_started_)
     {
       preset_started_ = true;
       planGlobalTrajbyGivenWps();
@@ -415,7 +431,83 @@ namespace scan_planner
 
   void SCANReplanFSM::go2ExecutionFrozenCallback(const std_msgs::msg::Bool::ConstSharedPtr &msg)
   {
-    go2_execution_frozen_ = msg->data;
+    go2_execution_frozen_ = navigation_enabled_ && msg->data;
+  }
+
+  void SCANReplanFSM::cancelNavigation()
+  {
+    trigger_ = false;
+    have_target_ = false;
+    have_new_target_ = false;
+    preset_started_ = false;
+    go2_execution_frozen_ = false;
+    need_hover_stop_ = false;
+    flag_escape_emergency_ = true;
+    replan_fail_count_ = 0;
+    active_waypoints_.clear();
+    current_wp_ = 0;
+    end_pt_.setZero();
+    end_vel_.setZero();
+
+    if (planner_manager_)
+    {
+      auto &local = planner_manager_->local_data_;
+      local.duration_ = 0.0;
+      local.start_time_ = rclcpp::Time(0, 0, node_->get_clock()->get_clock_type());
+      local.traj_id_ = 0;
+      auto &global = planner_manager_->global_data_;
+      global.global_duration_ = 0.0;
+      global.local_traj_.clear();
+    }
+    if (visualization_)
+      visualization_->clearNavigationMarkers();
+
+    const FSM_EXEC_STATE idle_state = have_odom_ ? WAIT_TARGET : INIT;
+    if (exec_state_ != idle_state)
+      changeFSMExecState(idle_state, "DISARM");
+  }
+
+  bool SCANReplanFSM::navigationRequestAllowed(
+      const builtin_interfaces::msg::Time &stamp, const char *source) const
+  {
+    if (!require_navigation_enable_)
+      return true;
+    if (!navigation_enabled_)
+    {
+      RCLCPP_WARN(node_->get_logger(), "Ignoring %s while navigation is disabled", source);
+      return false;
+    }
+    const rclcpp::Time request_time(stamp, node_->get_clock()->get_clock_type());
+    if (request_time.nanoseconds() <= 0 || request_time < navigation_enabled_at_)
+    {
+      RCLCPP_WARN(node_->get_logger(),
+                  "Ignoring %s older than the latest navigation enable", source);
+      return false;
+    }
+    return true;
+  }
+
+  void SCANReplanFSM::navigationEnabledCallback(
+      const std_msgs::msg::Bool::ConstSharedPtr &msg)
+  {
+    if (!require_navigation_enable_)
+      return;
+    if (!msg->data)
+    {
+      const bool was_enabled = navigation_enabled_;
+      navigation_enabled_ = false;
+      cancelNavigation();
+      if (was_enabled)
+        RCLCPP_WARN(node_->get_logger(), "Navigation disabled; target and trajectory cleared");
+      return;
+    }
+
+    if (navigation_enabled_)
+      return;
+    cancelNavigation();
+    navigation_enabled_at_ = node_->now();
+    navigation_enabled_ = true;
+    RCLCPP_INFO(node_->get_logger(), "Navigation enabled; waiting for a fresh target");
   }
 
   void SCANReplanFSM::updateLocalTrajTimeFreeze()
@@ -519,6 +611,8 @@ namespace scan_planner
 
   void SCANReplanFSM::execFSMCallback()
   {
+    if (!navigation_enabled_)
+      return;
     updateLocalTrajTimeFreeze();
 
     static int fsm_num = 0;
@@ -797,6 +891,8 @@ namespace scan_planner
 
   void SCANReplanFSM::checkCollisionCallback()
   {
+    if (!navigation_enabled_)
+      return;
     updateLocalTrajTimeFreeze();
 
     LocalTrajData *info = &planner_manager_->local_data_;

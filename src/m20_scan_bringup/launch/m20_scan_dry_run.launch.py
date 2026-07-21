@@ -3,6 +3,7 @@ from launch.actions import DeclareLaunchArgument
 from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration, PythonExpression
 from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
 from ament_index_python.packages import get_package_share_directory
 import os
 
@@ -18,6 +19,7 @@ def generate_launch_description():
     udp_bridge_yaml = os.path.join(
         bringup_share, "config", "m20_scan_udp_bridge.yaml")
     control_backend = LaunchConfiguration("control_backend")
+    enable_udp_output = LaunchConfiguration("enable_udp_output")
     sensor_pose_adapter_backend = LaunchConfiguration(
         "sensor_pose_adapter_backend")
     sensor_pose_adapter_parameters = [{
@@ -45,6 +47,12 @@ def generate_launch_description():
             default_value="cpp",
             choices=["cpp", "python"],
             description="Select the concurrent C++ adapter or Python fallback.",
+        ),
+        DeclareLaunchArgument(
+            "enable_udp_output",
+            default_value="false",
+            choices=["true", "false"],
+            description="Allow the UDP backend to open the real M20 motion link; it still starts DISARMED.",
         ),
         Node(
             package="m20_sensor_pose_adapter_cpp",
@@ -107,7 +115,11 @@ def generate_launch_description():
             executable="scan_m20_udp_safety_bridge",
             name="scan_m20_udp_safety_bridge",
             output="screen",
-            parameters=[udp_bridge_yaml],
+            parameters=[
+                udp_bridge_yaml,
+                {"enable_udp_output": ParameterValue(
+                    enable_udp_output, value_type=bool)},
+            ],
             condition=IfCondition(PythonExpression([
                 "'", control_backend, "' == 'udp'",
             ])),

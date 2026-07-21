@@ -22,6 +22,7 @@ namespace scan_planner
     using MarkerPublisher = rclcpp::Publisher<visualization_msgs::msg::Marker>;
     using MarkerArrayPublisher = rclcpp::Publisher<visualization_msgs::msg::MarkerArray>;
     rclcpp::Node *node_{nullptr};
+    std::string frame_id_{"world"};
 
     MarkerPublisher::SharedPtr goal_point_pub;
     MarkerPublisher::SharedPtr global_list_pub;
@@ -32,7 +33,7 @@ namespace scan_planner
   public:
     PlanningVisualization(/* args */) {}
     ~PlanningVisualization() {}
-    explicit PlanningVisualization(rclcpp::Node *node);
+    explicit PlanningVisualization(rclcpp::Node *node, const std::string &frame_id = "world");
 
     typedef std::shared_ptr<PlanningVisualization> Ptr;
 
@@ -50,6 +51,7 @@ namespace scan_planner
     void displayAStarList(std::vector<std::vector<Eigen::Vector3d>> a_star_paths, int id);
     void displayArrowList(const MarkerArrayPublisher::SharedPtr &pub, const vector<Eigen::Vector3d> &list,
                           double scale, Eigen::Vector4d color, int id);
+    void clearNavigationMarkers();
     // void displayIntermediateState(ros::Publisher& intermediate_pub, scan_planner::BsplineOptimizer::Ptr optimizer, double sleep_time, const int start_iteration);
     // void displayNewArrow(ros::Publisher& guide_vector_pub, scan_planner::BsplineOptimizer::Ptr optimizer);
   };

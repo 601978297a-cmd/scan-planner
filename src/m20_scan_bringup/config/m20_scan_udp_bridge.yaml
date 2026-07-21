@@ -45,4 +45,5 @@ scan_m20_udp_safety_bridge:
     front_cloud_stamp_topic: /scan/front_cloud_stamp
     preview_topic: /scan/udp_axis_preview
     status_topic: /scan/udp_safety_status
+    navigation_enabled_topic: /scan/navigation_enabled
     arm_service: /scan/arm_udp_control

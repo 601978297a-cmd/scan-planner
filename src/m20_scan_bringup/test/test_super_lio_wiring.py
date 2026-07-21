@@ -2,10 +2,15 @@ from pathlib import Path
 
 
 PACKAGE_ROOT = Path(__file__).resolve().parents[1]
+SOURCE_ROOT = PACKAGE_ROOT.parent
 
 
 def _read(relative_path):
     return (PACKAGE_ROOT / relative_path).read_text(encoding="utf-8")
+
+
+def _read_source(relative_path):
+    return (SOURCE_ROOT / relative_path).read_text(encoding="utf-8")
 
 
 def test_launch_uses_super_lio_for_every_body_pose_consumer():
@@ -55,6 +60,44 @@ def test_rviz_defaults_to_low_load_navigation_view():
     assert "Value: false" in raw_cloud
     assert "Frame Rate: 10" in rviz
     assert "Reference Frame: map" in rviz
+
+
+def test_m20_navigation_is_gated_by_udp_arm_state():
+    launch = _read("launch/m20_scan_dry_run.launch.py")
+    planner_config = _read("config/m20_scan_planner.yaml")
+    controller_config = _read("config/m20_scan_controller.yaml")
+    udp_config = _read("config/m20_scan_udp_bridge.yaml")
+    fsm_source = _read_source(
+        "planner/plan_manage/src/scan_replan_fsm.cpp")
+    controller_source = _read_source(
+        "planner/plan_manage/src/closed_loop_controller.cpp")
+
+    assert "fsm.require_navigation_enable: true" in planner_config
+    assert "require_navigation_enable: true" in controller_config
+    assert "navigation_enabled_topic: /scan/navigation_enabled" in udp_config
+    assert '"enable_udp_output"' in launch
+    assert "ParameterValue(" in launch
+    assert "navigationEnabledCallback" in fsm_source
+    assert "cancelNavigation" in fsm_source
+    assert "navigationEnabledCallback" in controller_source
+    assert "clearTrajectory" in controller_source
+
+
+def test_optimized_trajectory_marker_uses_map_and_transient_local_qos():
+    rviz = _read("rviz/m20_scan.rviz")
+    marker_name = rviz.index("Name: Optimized Trajectory")
+    marker_start = rviz.rfind("    - Class:", 0, marker_name)
+    marker_end = rviz.index("    - Class:", marker_name)
+    marker = rviz[marker_start:marker_end]
+    visualization_source = _read_source(
+        "planner/traj_utils/src/planning_visualization.cpp")
+    fsm_source = _read_source(
+        "planner/plan_manage/src/scan_replan_fsm.cpp")
+
+    assert "Durability Policy: Transient Local" in marker
+    assert 'header.frame_id = "world"' not in visualization_source
+    assert 'header.frame_id = "map"' not in visualization_source
+    assert "new PlanningVisualization(node_, self_inflation_frame_id_)" in fsm_source
 
 
 def test_removed_filter_and_odom_composition_adapters_are_not_entry_points():

@@ -7,6 +7,7 @@ import rclpy
 from m20_scan_bringup.scan_m20_udp_safety_bridge import (
     ScanM20UdpSafetyBridge,
 )
+from m20_scan_bringup.safety_bridge_core import BridgeState
 
 
 class FailingUdpLink:
@@ -24,12 +25,38 @@ def test_default_udp_node_rejects_arm_without_opening_socket():
         assert not node.enable_udp_output
         assert node.stop_cycles == 20
         assert node.udp_link is None
+        assert node.navigation_enabled is False
         request = SetBool.Request()
         request.data = True
         response = node._handle_arm(request, SetBool.Response())
         assert not response.success
         assert "enable_udp_output_false" in response.message
         assert node.udp_link is None
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+def test_navigation_enable_tracks_arm_and_disarm():
+    rclpy.init()
+    node = ScanM20UdpSafetyBridge()
+    try:
+        node._arm_blockers = lambda: []
+
+        arm_request = SetBool.Request()
+        arm_request.data = True
+        arm_response = node._handle_arm(arm_request, SetBool.Response())
+        assert arm_response.success
+        assert node.state_machine.state is BridgeState.ARMED
+        assert node.navigation_enabled is True
+
+        disarm_request = SetBool.Request()
+        disarm_request.data = False
+        disarm_response = node._handle_arm(
+            disarm_request, SetBool.Response())
+        assert disarm_response.success
+        assert node.state_machine.state is BridgeState.STOPPING
+        assert node.navigation_enabled is False
     finally:
         node.destroy_node()
         rclpy.shutdown()

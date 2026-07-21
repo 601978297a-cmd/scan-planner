@@ -30,6 +30,12 @@ public:
     max_vy_ = declare_parameter<double>("max_vy", 0.35);
     max_vyaw_ = std::min(declare_parameter<double>("max_vyaw", 1.0), kMaxVYawLimit);
     finish_dist_ = declare_parameter<double>("finish_dist", 0.15);
+    require_navigation_enable_ =
+        declare_parameter<bool>("require_navigation_enable", false);
+    const auto navigation_enabled_topic = declare_parameter<std::string>(
+        "navigation_enabled_topic", "/scan/navigation_enabled");
+    navigation_enabled_ = !require_navigation_enable_;
+    navigation_enabled_at_ = now();
 
     bspline_sub_ = create_subscription<scan_planner_msgs::msg::Bspline>(
         "planning/bspline", 10,
@@ -37,6 +43,14 @@ public:
     odom_sub_ = create_subscription<nav_msgs::msg::Odometry>(
         "body_pose", rclcpp::SensorDataQoS(),
         std::bind(&ClosedLoopController::odomCallback, this, std::placeholders::_1));
+    if (require_navigation_enable_)
+    {
+      navigation_enabled_sub_ = create_subscription<std_msgs::msg::Bool>(
+          navigation_enabled_topic,
+          rclcpp::QoS(1).reliable().transient_local(),
+          std::bind(&ClosedLoopController::navigationEnabledCallback, this,
+                    std::placeholders::_1));
+    }
     cmd_vel_pub_ = create_publisher<geometry_msgs::msg::Twist>("cmd_vel", 20);
     execution_frozen_pub_ = create_publisher<std_msgs::msg::Bool>("planning/go2_execution_frozen", 10);
     cmd_timer_ = create_wall_timer(std::chrono::milliseconds(10),
@@ -85,8 +99,56 @@ private:
     execution_frozen_pub_->publish(msg);
   }
 
+  void clearTrajectory()
+  {
+    receive_traj_ = false;
+    traj_.clear();
+    traj_duration_ = 0.0;
+    exec_time_ = 0.0;
+    traj_id_ = 0;
+    last_update_time_ = now();
+    publishExecutionFrozen(false);
+    publishStop();
+  }
+
+  void navigationEnabledCallback(const std_msgs::msg::Bool::ConstSharedPtr msg)
+  {
+    if (!require_navigation_enable_)
+      return;
+
+    if (!msg->data)
+    {
+      const bool was_enabled = navigation_enabled_;
+      navigation_enabled_ = false;
+      clearTrajectory();
+      if (was_enabled)
+        RCLCPP_WARN(get_logger(), "Navigation disabled; controller trajectory cleared");
+      return;
+    }
+
+    if (navigation_enabled_)
+      return;
+    clearTrajectory();
+    navigation_enabled_at_ = now();
+    navigation_enabled_ = true;
+    RCLCPP_INFO(get_logger(), "Navigation enabled; waiting for a fresh trajectory");
+  }
+
   void bsplineCallback(const scan_planner_msgs::msg::Bspline::ConstSharedPtr msg)
   {
+    if (!navigation_enabled_)
+    {
+      RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 1000,
+                           "Ignoring trajectory while navigation is disabled");
+      return;
+    }
+    const rclcpp::Time trajectory_start(msg->start_time, get_clock()->get_clock_type());
+    if (require_navigation_enable_ &&
+        (trajectory_start.nanoseconds() <= 0 || trajectory_start < navigation_enabled_at_))
+    {
+      RCLCPP_WARN(get_logger(), "Ignoring trajectory older than the latest navigation enable");
+      return;
+    }
     if (msg->pos_pts.empty() || msg->knots.empty() || msg->order <= 0)
     {
       RCLCPP_WARN(get_logger(), "Ignoring invalid B-spline");
@@ -119,7 +181,7 @@ private:
 
   void cmdCallback()
   {
-    if (!receive_traj_ || !have_odom_)
+    if (!navigation_enabled_ || !receive_traj_ || !have_odom_)
     {
       publishExecutionFrozen(false);
       publishStop();
@@ -164,9 +226,12 @@ private:
   rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr execution_frozen_pub_;
   rclcpp::Subscription<scan_planner_msgs::msg::Bspline>::SharedPtr bspline_sub_;
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
+  rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr navigation_enabled_sub_;
   rclcpp::TimerBase::SharedPtr cmd_timer_;
   bool receive_traj_{false};
   bool have_odom_{false};
+  bool require_navigation_enable_{false};
+  bool navigation_enabled_{true};
   std::vector<UniformBspline> traj_;
   double traj_duration_{0.0};
   std::int64_t traj_id_{0};
@@ -174,6 +239,7 @@ private:
   double odom_yaw_{0.0};
   double exec_time_{0.0};
   rclcpp::Time last_update_time_{0, 0, RCL_ROS_TIME};
+  rclcpp::Time navigation_enabled_at_{0, 0, RCL_ROS_TIME};
   double time_forward_, heading_error_threshold_, kp_pos_, kp_yaw_;
   double max_vx_, max_vy_, max_vyaw_, finish_dist_;
 };

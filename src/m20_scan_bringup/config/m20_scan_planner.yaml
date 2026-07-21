@@ -9,6 +9,8 @@ scan_planner_node:
     fsm.emergency_time: 1.0
     fsm.fail_safe: true
     fsm.max_replan_fail_count: 1000
+    fsm.require_navigation_enable: true
+    fsm.navigation_enabled_topic: /scan/navigation_enabled
 
     grid_map.frame_id: map
     grid_map.sliding_map_frame_id: sliding_map
