@@ -77,6 +77,10 @@ def test_m20_navigation_is_gated_by_udp_arm_state():
     assert "navigation_enabled_topic: /scan/navigation_enabled" in udp_config
     assert "auto_arm_enabled: true" in udp_config
     assert "auto_arm_stable_sec: 2.0" in udp_config
+    assert "yaw_zero_epsilon: 0.04" in udp_config
+    assert "yaw_start_threshold: 0.04" in udp_config
+    assert "yaw_stop_threshold: 0.02" in udp_config
+    assert "udp_yaw_slew_rate: 2.0" in udp_config
     assert '"enable_udp_output"' in launch
     assert "ParameterValue(" in launch
     assert "navigationEnabledCallback" in fsm_source

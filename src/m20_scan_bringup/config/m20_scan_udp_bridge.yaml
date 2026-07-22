@@ -21,13 +21,14 @@ scan_m20_udp_safety_bridge:
     max_wz: 0.20
     max_ax: 0.10
     max_awz: 0.50
-    yaw_zero_epsilon: 0.01
+    yaw_zero_epsilon: 0.04
 
     udp_max_x: 0.50
     udp_yaw_deadzone: 0.50
     udp_max_yaw: 1.00
-    yaw_start_threshold: 0.02
-    yaw_stop_threshold: 0.01
+    yaw_start_threshold: 0.04
+    yaw_stop_threshold: 0.02
+    udp_yaw_slew_rate: 2.0
 
     command_timeout: 0.20
     body_pose_timeout: 0.50

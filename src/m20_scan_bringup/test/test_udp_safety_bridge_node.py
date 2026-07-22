@@ -7,12 +7,24 @@ import rclpy
 from m20_scan_bringup.scan_m20_udp_safety_bridge import (
     ScanM20UdpSafetyBridge,
 )
+from m20_scan_bringup.m20_udp_protocol import UdpAxis
 from m20_scan_bringup.safety_bridge_core import BridgeState
 
 
 class FailingUdpLink:
     def send_axis(self, _axis):
         raise OSError("test send failure")
+
+    def close(self):
+        pass
+
+
+class CapturingUdpLink:
+    def __init__(self):
+        self.axes = []
+
+    def send_axis(self, axis):
+        self.axes.append(axis)
 
     def close(self):
         pass
@@ -190,6 +202,29 @@ def test_failed_zero_send_does_not_advance_stopping_sequence():
         node.state_machine.begin_stop(2)
         node._tick()
         assert node.state_machine.stop_cycles_remaining == 2
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+def test_stopping_bypasses_yaw_slew_and_sends_zero_immediately():
+    rclpy.init()
+    node = ScanM20UdpSafetyBridge()
+    try:
+        link = CapturingUdpLink()
+        node.udp_link = link
+        node.preview_axis = UdpAxis(yaw=0.50)
+        node.stop_cycles = 1
+        assert node.state_machine.arm()
+        node._begin_stop("test_stop")
+
+        assert node.preview_axis == UdpAxis()
+
+        node._tick()
+
+        assert link.axes == [UdpAxis()]
+        assert node.preview_axis == UdpAxis()
+        assert node.state_machine.state is BridgeState.DISARMED
     finally:
         node.destroy_node()
         rclpy.shutdown()

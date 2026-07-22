@@ -16,6 +16,7 @@ from m20_scan_bringup.m20_udp_protocol import (
     find_conflicting_processes,
     heartbeat_error_code,
     parse_packet,
+    slew_udp_axis,
 )
 
 
@@ -25,8 +26,8 @@ LIMITS = UdpMappingLimits(
     max_x=0.50,
     yaw_deadzone=0.50,
     max_yaw=1.00,
-    yaw_start_threshold=0.02,
-    yaw_stop_threshold=0.01,
+    yaw_start_threshold=0.04,
+    yaw_stop_threshold=0.02,
 )
 
 
@@ -81,12 +82,47 @@ def test_mapper_scales_forward_and_saturates():
 
 def test_mapper_applies_yaw_deadzone_and_hysteresis():
     mapper = UdpCommandMapper(LIMITS)
-    assert mapper.map(0.0, 0.0, 0.015).yaw == 0.0
-    assert math.isclose(mapper.map(0.0, 0.0, 0.02).yaw, 0.55)
-    assert mapper.map(0.0, 0.0, 0.015).yaw > 0.50
-    assert mapper.map(0.0, 0.0, 0.01).yaw == 0.0
-    assert mapper.map(0.0, 0.0, -0.015).yaw == 0.0
+    assert mapper.map(0.0, 0.0, 0.03).yaw == 0.0
+    assert math.isclose(mapper.map(0.0, 0.0, 0.04).yaw, 0.60)
+    assert mapper.map(0.0, 0.0, 0.03).yaw > 0.50
+    assert mapper.map(0.0, 0.0, 0.02).yaw == 0.0
+    assert mapper.map(0.0, 0.0, -0.03).yaw == 0.0
     assert math.isclose(mapper.map(0.0, 0.0, -0.20).yaw, -1.0)
+
+
+def test_udp_yaw_slew_ramps_without_overshoot():
+    first = slew_udp_axis(
+        UdpAxis(), UdpAxis(x=0.25, yaw=0.60), 0.05, 2.0)
+    assert first == UdpAxis(x=0.25, yaw=0.10)
+
+    target = UdpAxis(x=0.25, yaw=0.60)
+    final = slew_udp_axis(UdpAxis(yaw=0.55), target, 0.05, 2.0)
+    assert final == target
+
+
+def test_udp_yaw_reversal_outputs_zero_before_opposite_sign():
+    target = UdpAxis(yaw=-0.60)
+    current = UdpAxis(yaw=0.60)
+    outputs = []
+
+    for _ in range(8):
+        current = slew_udp_axis(current, target, 0.05, 2.0)
+        outputs.append(current.yaw)
+
+    first_negative = next(
+        index for index, yaw in enumerate(outputs) if yaw < 0.0)
+    assert 0.0 in outputs[:first_negative]
+    assert outputs[first_negative] == -0.10
+
+
+def test_udp_yaw_slew_reset_starts_again_from_zero():
+    target = UdpAxis(yaw=0.75)
+    moving = slew_udp_axis(UdpAxis(), target, 0.05, 2.0)
+    assert moving.yaw == 0.10
+
+    reset = UdpAxis()
+    restarted = slew_udp_axis(reset, target, 0.05, 2.0)
+    assert restarted.yaw == 0.10
 
 
 def test_udp_link_round_trip_with_local_heartbeat_server():

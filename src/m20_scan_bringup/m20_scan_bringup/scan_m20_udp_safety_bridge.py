@@ -19,6 +19,7 @@ from .m20_udp_protocol import (
     UdpCommandMapper,
     UdpMappingLimits,
     find_conflicting_processes,
+    slew_udp_axis,
 )
 from .safety_bridge_core import (
     BridgeState,
@@ -100,7 +101,7 @@ class ScanM20UdpSafetyBridge(Node):
             max_ax=float(self.declare_parameter("max_ax", 0.10).value),
             max_awz=float(self.declare_parameter("max_awz", 0.50).value),
             yaw_zero_epsilon=float(
-                self.declare_parameter("yaw_zero_epsilon", 0.01).value),
+                self.declare_parameter("yaw_zero_epsilon", 0.04).value),
             min_yaw_cmd=0.0,
         )
         self.mapping_limits = UdpMappingLimits(
@@ -111,9 +112,14 @@ class ScanM20UdpSafetyBridge(Node):
                 self.declare_parameter("udp_yaw_deadzone", 0.50).value),
             max_yaw=float(self.declare_parameter("udp_max_yaw", 1.00).value),
             yaw_start_threshold=float(
-                self.declare_parameter("yaw_start_threshold", 0.02).value),
+                self.declare_parameter("yaw_start_threshold", 0.04).value),
             yaw_stop_threshold=float(
-                self.declare_parameter("yaw_stop_threshold", 0.01).value),
+                self.declare_parameter("yaw_stop_threshold", 0.02).value),
+        )
+        self.udp_yaw_slew_rate = max(
+            0.0,
+            float(self.declare_parameter(
+                "udp_yaw_slew_rate", 2.0).value),
         )
         self.freshness_limits = FreshnessLimits(
             command=float(self.declare_parameter("command_timeout", 0.20).value),
@@ -377,6 +383,7 @@ class ScanM20UdpSafetyBridge(Node):
         if base_reasons:
             self.preview_command = Command()
             self.mapper.reset()
+            self.preview_axis = UdpAxis()
         else:
             target = limit_command(
                 self.last_command.vx,
@@ -389,11 +396,17 @@ class ScanM20UdpSafetyBridge(Node):
                 dt,
                 self.command_limits,
             )
-        self.preview_axis = self.mapper.map(
-            self.preview_command.vx,
-            self.preview_command.vy,
-            self.preview_command.wz,
-        )
+            target_axis = self.mapper.map(
+                self.preview_command.vx,
+                self.preview_command.vy,
+                self.preview_command.wz,
+            )
+            self.preview_axis = slew_udp_axis(
+                self.preview_axis,
+                target_axis,
+                dt,
+                self.udp_yaw_slew_rate,
+            )
         if self._rate_due(now, self.last_preview_publish, self.preview_rate):
             self._publish_preview()
             self.last_preview_publish = now
@@ -543,6 +556,9 @@ class ScanM20UdpSafetyBridge(Node):
         if self.state_machine.state is not BridgeState.STOPPING:
             self.stop_reason = reason
             self.get_logger().error(f"Disarming M20 UDP output: {reason}")
+            self.mapper.reset()
+            self.preview_command = Command()
+            self.preview_axis = UdpAxis()
         self.state_machine.begin_stop(self.stop_cycles)
 
     def _publish_navigation_enabled(self, enabled: bool) -> None:

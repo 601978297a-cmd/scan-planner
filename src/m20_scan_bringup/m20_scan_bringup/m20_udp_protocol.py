@@ -75,6 +75,40 @@ class UdpCommandMapper:
         return self._yaw_sign * min(axis_magnitude, self.limits.max_yaw)
 
 
+def slew_udp_axis(
+    current: UdpAxis,
+    target: UdpAxis,
+    dt: float,
+    max_yaw_rate: float,
+) -> UdpAxis:
+    values = (
+        current.x,
+        current.y,
+        current.yaw,
+        target.x,
+        target.y,
+        target.yaw,
+        dt,
+        max_yaw_rate,
+    )
+    if not all(math.isfinite(value) for value in values):
+        return UdpAxis()
+
+    max_delta = max(0.0, dt) * max(0.0, max_yaw_rate)
+    desired_yaw = target.yaw
+    if current.yaw * target.yaw < 0.0:
+        desired_yaw = 0.0
+
+    delta = desired_yaw - current.yaw
+    if abs(delta) <= max_delta:
+        yaw = desired_yaw
+    elif max_delta > 0.0:
+        yaw = current.yaw + math.copysign(max_delta, delta)
+    else:
+        yaw = current.yaw
+    return UdpAxis(x=target.x, y=target.y, yaw=yaw)
+
+
 def build_packet(
     message_type: int,
     command: int,
