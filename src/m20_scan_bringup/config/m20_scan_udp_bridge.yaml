@@ -17,7 +17,7 @@ scan_m20_udp_safety_bridge:
     auto_arm_enabled: true
     auto_arm_stable_sec: 2.0
 
-    max_vx: 0.05
+    max_vx: 0.15
     max_wz: 0.20
     max_ax: 0.10
     max_awz: 0.50
