@@ -31,7 +31,7 @@ Visualization Manager:
         Z: 0
       Plane: XY
       Plane Cell Count: 10
-      Reference Frame: map
+      Reference Frame: world
       Value: true
     - Class: rviz_default_plugins/TF
       Enabled: true
@@ -398,7 +398,7 @@ Visualization Manager:
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
-    Fixed Frame: map
+    Fixed Frame: world
     Frame Rate: 10
   Name: root
   Tools:

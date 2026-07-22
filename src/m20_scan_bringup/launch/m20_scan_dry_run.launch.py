@@ -23,7 +23,7 @@ def generate_launch_description():
     sensor_pose_adapter_backend = LaunchConfiguration(
         "sensor_pose_adapter_backend")
     sensor_pose_adapter_parameters = [{
-        "target_frame": "map",
+        "target_frame": "world",
         "source_frame": "rslidar_front",
         "cloud_topic": "/rslidar_points_front",
         "output_topic": "/scan/sensor_pose",
