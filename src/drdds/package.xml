@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>drdds</name>
+  <version>0.0.1</version>
+  <description>M20 DDS message definitions required by the SCAN control bridge.</description>
+  <maintainer email="nvidia@example.com">nvidia</maintainer>
+  <license>Proprietary-compatible interface definitions</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <build_depend>rosidl_default_generators</build_depend>
+  <depend>builtin_interfaces</depend>
+  <exec_depend>rosidl_default_runtime</exec_depend>
+  <member_of_group>rosidl_interface_packages</member_of_group>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

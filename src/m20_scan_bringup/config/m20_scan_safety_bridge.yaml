@@ -1,23 +1,22 @@
 scan_m20_safety_bridge:
   ros__parameters:
     enable_m20_output: false
-    yaw_deadzone_calibrated: false
+    auto_arm_enabled: true
+    auto_arm_stable_sec: 2.0
 
     publish_rate: 20.0
-    stop_cycles: 5
+    stop_cycles: 20
     nav_frame_id: 0
+    cloud_stamp_history_sec: 1.0
 
-    max_vx: 0.05
-    max_wz: 0.30
-    max_ax: 0.10
-    max_awz: 0.50
-    yaw_zero_epsilon: 0.01
-    min_yaw_cmd: 0.0
+    forward_speed: 0.15
+    yaw_speed: 0.35
+    yaw_zero_epsilon: 0.04
 
     command_timeout: 0.20
     body_pose_timeout: 0.50
-    sensor_pose_timeout: 0.50
-    front_cloud_timeout: 0.30
+    sensor_pose_timeout: 0.80
+    front_cloud_timeout: 0.80
     motion_info_timeout: 0.50
     max_sensor_cloud_stamp_delta: 0.02
 
@@ -25,6 +24,9 @@ scan_m20_safety_bridge:
     body_pose_topic: /lio/robo/odom
     sensor_pose_topic: /scan/sensor_pose
     front_cloud_stamp_topic: /scan/front_cloud_stamp
+    motion_info_topic: /MOTION_INFO
     preview_topic: /scan/nav_cmd_preview
     status_topic: /scan/nav_safety_status
     nav_cmd_topic: /NAV_CMD
+    navigation_enabled_topic: /scan/navigation_enabled
+    arm_service: /scan/arm_nav_cmd

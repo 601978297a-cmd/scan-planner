@@ -25,8 +25,9 @@ def generate_launch_description():
             )
         ),
         launch_arguments={
-            "control_backend": "udp",
-            "enable_udp_output": "true",
+            "control_backend": "nav_cmd",
+            "enable_nav_cmd_output": "true",
+            "enable_udp_output": "false",
         }.items(),
     )
 

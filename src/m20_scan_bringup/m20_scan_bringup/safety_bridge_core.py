@@ -22,6 +22,47 @@ class CommandLimits:
     min_yaw_cmd: float
 
 
+@dataclass(frozen=True)
+class NavCommandLimits:
+    forward_speed: float
+    yaw_speed: float
+    yaw_zero_epsilon: float
+
+
+class NavCommandShaper:
+    def __init__(self, limits: NavCommandLimits) -> None:
+        self.limits = limits
+        self._yaw_sign = 0.0
+
+    def reset(self) -> None:
+        self._yaw_sign = 0.0
+
+    def map(self, vx: float, vy: float, wz: float) -> Command:
+        if not all(math.isfinite(value) for value in (vx, vy, wz)):
+            self.reset()
+            return Command()
+
+        safe_vx = self.limits.forward_speed if vx > 0.0 else 0.0
+        desired_sign = 0.0
+        if abs(wz) > self.limits.yaw_zero_epsilon:
+            desired_sign = math.copysign(1.0, wz)
+
+        if desired_sign == 0.0:
+            self._yaw_sign = 0.0
+            return Command(vx=safe_vx)
+
+        if self._yaw_sign != 0.0 and desired_sign != self._yaw_sign:
+            self._yaw_sign = 0.0
+            return Command(vx=safe_vx)
+
+        self._yaw_sign = desired_sign
+        return Command(
+            vx=safe_vx,
+            vy=0.0,
+            wz=desired_sign * self.limits.yaw_speed,
+        )
+
+
 @dataclass
 class InputState:
     command_rx: Optional[float] = None
@@ -75,6 +116,10 @@ class SafetyStateMachine:
             self.state = BridgeState.DISARMED
             return True
         return False
+
+    def abort_output(self) -> None:
+        self.state = BridgeState.DISARMED
+        self.stop_cycles_remaining = 0
 
 
 class RecentStampHistory:

@@ -6,6 +6,8 @@ from m20_scan_bringup.safety_bridge_core import (
     CommandLimits,
     FreshnessLimits,
     InputState,
+    NavCommandLimits,
+    NavCommandShaper,
     RecentStampHistory,
     RecentStampPairTracker,
     SafetyStateMachine,
@@ -33,6 +35,12 @@ FRESHNESS = FreshnessLimits(
     max_sensor_cloud_stamp_delta=0.02,
 )
 
+NAV_LIMITS = NavCommandLimits(
+    forward_speed=0.15,
+    yaw_speed=0.35,
+    yaw_zero_epsilon=0.04,
+)
+
 
 def test_command_mapping_rejects_reverse_lateral_and_limits_yaw():
     command = limit_command(-0.2, 0.8, LIMITS)
@@ -47,6 +55,29 @@ def test_command_mapping_applies_yaw_deadzone_and_minimum():
 
 def test_nonfinite_commands_become_zero():
     assert limit_command(math.nan, math.inf, LIMITS) == Command()
+
+
+def test_nav_command_shaper_uses_m20_physical_speed_range():
+    shaper = NavCommandShaper(NAV_LIMITS)
+
+    assert shaper.map(-0.2, 0.8, 0.0) == Command()
+    assert shaper.map(0.01, 0.0, 0.0) == Command(vx=0.15)
+    assert shaper.map(0.2, 0.0, 0.03) == Command(vx=0.15)
+    assert shaper.map(0.2, 0.0, 0.10) == Command(
+        vx=0.15, wz=0.35)
+    assert shaper.map(0.2, 0.0, -0.10) == Command(vx=0.15)
+    assert shaper.map(0.2, 0.0, -0.10) == Command(
+        vx=0.15, wz=-0.35)
+
+
+def test_nav_command_shaper_fails_closed_and_can_reset():
+    shaper = NavCommandShaper(NAV_LIMITS)
+
+    assert shaper.map(math.nan, 0.0, 0.1) == Command()
+    assert shaper.map(0.1, 0.0, math.inf) == Command()
+    assert shaper.map(0.1, 0.0, 0.1).wz == 0.35
+    shaper.reset()
+    assert shaper.map(0.0, 0.0, 0.0) == Command()
 
 
 def test_acceleration_limits_are_applied():
@@ -243,3 +274,14 @@ def test_stop_sequence_requires_exact_zero_publish_count():
         assert not machine.record_stop_publish()
     assert machine.record_stop_publish()
     assert machine.state is BridgeState.DISARMED
+
+
+def test_state_machine_can_abort_output_after_publish_failure():
+    machine = SafetyStateMachine()
+    assert machine.arm()
+    machine.begin_stop(20)
+
+    machine.abort_output()
+
+    assert machine.state is BridgeState.DISARMED
+    assert machine.stop_cycles_remaining == 0

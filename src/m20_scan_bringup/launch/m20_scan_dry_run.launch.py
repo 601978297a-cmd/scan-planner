@@ -19,6 +19,7 @@ def generate_launch_description():
     udp_bridge_yaml = os.path.join(
         bringup_share, "config", "m20_scan_udp_bridge.yaml")
     control_backend = LaunchConfiguration("control_backend")
+    enable_nav_cmd_output = LaunchConfiguration("enable_nav_cmd_output")
     enable_udp_output = LaunchConfiguration("enable_udp_output")
     sensor_pose_adapter_backend = LaunchConfiguration(
         "sensor_pose_adapter_backend")
@@ -47,6 +48,12 @@ def generate_launch_description():
             default_value="cpp",
             choices=["cpp", "python"],
             description="Select the concurrent C++ adapter or Python fallback.",
+        ),
+        DeclareLaunchArgument(
+            "enable_nav_cmd_output",
+            default_value="false",
+            choices=["true", "false"],
+            description="Allow the guarded NAV_CMD backend to create the real M20 command publisher.",
         ),
         DeclareLaunchArgument(
             "enable_udp_output",
@@ -105,7 +112,11 @@ def generate_launch_description():
             executable="scan_m20_safety_bridge",
             name="scan_m20_safety_bridge",
             output="screen",
-            parameters=[safety_bridge_yaml],
+            parameters=[
+                safety_bridge_yaml,
+                {"enable_m20_output": ParameterValue(
+                    enable_nav_cmd_output, value_type=bool)},
+            ],
             condition=IfCondition(PythonExpression([
                 "'", control_backend, "' == 'nav_cmd'",
             ])),
