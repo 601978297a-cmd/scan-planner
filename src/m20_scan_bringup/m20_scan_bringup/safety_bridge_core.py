@@ -174,7 +174,7 @@ def limit_command(vx: float, wz: float, limits: CommandLimits) -> Command:
     wz = wz if math.isfinite(wz) else 0.0
 
     safe_vx = min(max(vx, 0.0), limits.max_vx)
-    if abs(wz) <= limits.yaw_zero_epsilon:
+    if abs(wz) < limits.yaw_zero_epsilon:
         safe_wz = 0.0
     else:
         magnitude = max(abs(wz), limits.min_yaw_cmd)

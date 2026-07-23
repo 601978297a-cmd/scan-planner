@@ -24,19 +24,16 @@ class UdpMappingLimits:
     max_vx: float
     max_wz: float
     max_x: float
-    yaw_deadzone: float
     max_yaw: float
-    yaw_start_threshold: float
-    yaw_stop_threshold: float
+    yaw_zero_epsilon: float
 
 
 class UdpCommandMapper:
     def __init__(self, limits: UdpMappingLimits):
         self.limits = limits
-        self._yaw_sign = 0.0
 
     def reset(self) -> None:
-        self._yaw_sign = 0.0
+        pass
 
     def map(self, vx: float, _vy: float, wz: float) -> UdpAxis:
         if not all(math.isfinite(value) for value in (vx, _vy, wz)):
@@ -53,26 +50,13 @@ class UdpCommandMapper:
 
     def _map_yaw(self, wz: float) -> float:
         magnitude = abs(wz)
-        desired_sign = 1.0 if wz > 0.0 else -1.0 if wz < 0.0 else 0.0
-
-        if magnitude <= self.limits.yaw_stop_threshold:
-            self._yaw_sign = 0.0
+        if magnitude < self.limits.yaw_zero_epsilon:
             return 0.0
-
-        if desired_sign != self._yaw_sign:
-            self._yaw_sign = 0.0
-            if magnitude < self.limits.yaw_start_threshold:
-                return 0.0
-            self._yaw_sign = desired_sign
-
-        if self._yaw_sign == 0.0 or self.limits.max_wz <= 0.0:
+        if self.limits.max_wz <= 0.0 or self.limits.max_yaw <= 0.0:
             return 0.0
 
         ratio = min(magnitude / self.limits.max_wz, 1.0)
-        axis_magnitude = self.limits.yaw_deadzone
-        axis_magnitude += (
-            self.limits.max_yaw - self.limits.yaw_deadzone) * ratio
-        return self._yaw_sign * min(axis_magnitude, self.limits.max_yaw)
+        return math.copysign(self.limits.max_yaw * ratio, wz)
 
 
 def slew_udp_axis(

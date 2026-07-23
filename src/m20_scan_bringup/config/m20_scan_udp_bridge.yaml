@@ -8,8 +8,8 @@ scan_m20_udp_safety_bridge:
     udp_bind_port: 0
 
     timer_rate: 20.0
-    command_rate: 10.0
-    preview_rate: 10.0
+    command_rate: 20.0
+    preview_rate: 20.0
     status_rate: 2.0
     heartbeat_rate: 1.0
     heartbeat_timeout: 2.0
@@ -24,10 +24,7 @@ scan_m20_udp_safety_bridge:
     yaw_zero_epsilon: 0.04
 
     udp_max_x: 0.50
-    udp_yaw_deadzone: 0.50
-    udp_max_yaw: 1.00
-    yaw_start_threshold: 0.04
-    yaw_stop_threshold: 0.02
+    udp_max_yaw: 0.60
     udp_yaw_slew_rate: 2.0
 
     command_timeout: 0.20

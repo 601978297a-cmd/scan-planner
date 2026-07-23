@@ -17,6 +17,7 @@
 文件：
 
 - 修改 `src/m20_scan_bringup/test/test_m20_udp_protocol.py`
+- 修改 `src/m20_scan_bringup/test/test_safety_bridge_core.py`
 - 修改 `src/m20_scan_bringup/test/test_super_lio_wiring.py`
 
 步骤：
@@ -25,14 +26,16 @@
 2. 保留非有限值、禁止倒车和强制横移为零的测试。
 3. 将前进测试改为 `0.075→0.25`、`0.15→0.50` 和超限饱和。
 4. 用线性转向测试替换旧的最小转向/迟滞测试。
-5. 增加 YAML 断言，锁定碰撞参数、20 Hz 和线性映射参数，并确认旧的转向死区/迟滞参数已删除。
-6. 单独运行这两个测试文件，确认新断言在实现前失败。
+5. 锁定零阈值边界：小于 `0.04` 为零，等于 `0.04` 开始线性输出。
+6. 增加 YAML 断言，锁定碰撞参数、20 Hz 和线性映射参数，并确认旧的转向死区/迟滞参数已删除。
+7. 单独运行这些测试文件，确认新断言在实现前失败。
 
 ## 任务 2：最小修改 UDP 映射
 
 文件：
 
 - 修改 `src/m20_scan_bringup/m20_scan_bringup/m20_udp_protocol.py`
+- 修改 `src/m20_scan_bringup/m20_scan_bringup/safety_bridge_core.py`
 - 修改 `src/m20_scan_bringup/m20_scan_bringup/scan_m20_udp_safety_bridge.py`
 
 步骤：
@@ -40,10 +43,11 @@
 1. 将 `UdpMappingLimits` 精简为前进和转向线性映射所需字段。
 2. 删除 mapper 内部的转向符号状态、启动阈值、停止阈值和最小转向输出。
 3. 按比例计算并限幅 `X` 和 `Yaw`；非有限值返回零，`Y` 始终为零。
-4. 节点仅声明 `udp_max_x`、`udp_max_yaw` 和 `yaw_zero_epsilon` 所需参数。
-5. 自动 ARM 的“命令必须为零”检查使用统一的 `yaw_zero_epsilon`。
-6. 不修改 `slew_command`、`slew_udp_axis`、状态机、心跳或停车逻辑。
-7. 重新运行 UDP 协议测试，确认通过。
+4. 将命令限幅的零阈值边界统一为“小于阈值归零，等于阈值开始输出”。
+5. 节点仅声明 `udp_max_x`、`udp_max_yaw` 和 `yaw_zero_epsilon` 所需参数。
+6. 自动 ARM 的“命令必须为零”检查使用统一的 `yaw_zero_epsilon`。
+7. 不修改 `slew_command`、`slew_udp_axis`、状态机、心跳或停车逻辑。
+8. 重新运行 UDP 协议测试，确认通过。
 
 ## 任务 3：修改配置
 

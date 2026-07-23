@@ -41,6 +41,7 @@ def test_command_mapping_rejects_reverse_lateral_and_limits_yaw():
 
 def test_command_mapping_applies_yaw_deadzone_and_minimum():
     assert limit_command(0.02, 0.005, LIMITS).wz == 0.0
+    assert limit_command(0.02, 0.01, LIMITS).wz == 0.15
     assert limit_command(0.02, -0.02, LIMITS).wz == -0.15
 
 

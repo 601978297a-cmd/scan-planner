@@ -78,8 +78,6 @@ def test_m20_navigation_is_gated_by_udp_arm_state():
     assert "auto_arm_enabled: true" in udp_config
     assert "auto_arm_stable_sec: 2.0" in udp_config
     assert "yaw_zero_epsilon: 0.04" in udp_config
-    assert "yaw_start_threshold: 0.04" in udp_config
-    assert "yaw_stop_threshold: 0.02" in udp_config
     assert "udp_yaw_slew_rate: 2.0" in udp_config
     assert '"enable_udp_output"' in launch
     assert "ParameterValue(" in launch
@@ -87,6 +85,26 @@ def test_m20_navigation_is_gated_by_udp_arm_state():
     assert "cancelNavigation" in fsm_source
     assert "navigationEnabledCallback" in controller_source
     assert "clearTrajectory" in controller_source
+
+
+def test_m20_collision_and_udp_mapping_match_approved_design():
+    planner_config = _read("config/m20_scan_planner.yaml")
+    udp_config = _read("config/m20_scan_udp_bridge.yaml")
+
+    assert "grid_map.double_cylinder_radius: 0.30" in planner_config
+    assert "grid_map.double_cylinder_offset: 0.20" in planner_config
+    assert "optimization.dist0: 0.25" in planner_config
+
+    assert "enable_udp_output: false" in udp_config
+    assert "command_rate: 20.0" in udp_config
+    assert "preview_rate: 20.0" in udp_config
+    assert "max_vx: 0.15" in udp_config
+    assert "max_wz: 0.20" in udp_config
+    assert "udp_max_x: 0.50" in udp_config
+    assert "udp_max_yaw: 0.60" in udp_config
+    assert "udp_yaw_deadzone" not in udp_config
+    assert "yaw_start_threshold" not in udp_config
+    assert "yaw_stop_threshold" not in udp_config
 
 
 def test_optimized_trajectory_marker_uses_map_and_transient_local_qos():

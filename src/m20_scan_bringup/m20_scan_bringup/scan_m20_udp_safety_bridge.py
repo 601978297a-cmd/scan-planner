@@ -58,9 +58,9 @@ class ScanM20UdpSafetyBridge(Node):
             self.declare_parameter("enable_udp_output", False).value)
         self.timer_rate = float(self.declare_parameter("timer_rate", 20.0).value)
         self.command_rate = float(
-            self.declare_parameter("command_rate", 10.0).value)
+            self.declare_parameter("command_rate", 20.0).value)
         self.preview_rate = float(
-            self.declare_parameter("preview_rate", 10.0).value)
+            self.declare_parameter("preview_rate", 20.0).value)
         self.status_rate = float(
             self.declare_parameter("status_rate", 2.0).value)
         self.heartbeat_rate = float(
@@ -96,7 +96,7 @@ class ScanM20UdpSafetyBridge(Node):
             self.declare_parameter("udp_bind_port", 0).value)
 
         self.command_limits = CommandLimits(
-            max_vx=float(self.declare_parameter("max_vx", 0.05).value),
+            max_vx=float(self.declare_parameter("max_vx", 0.15).value),
             max_wz=float(self.declare_parameter("max_wz", 0.20).value),
             max_ax=float(self.declare_parameter("max_ax", 0.10).value),
             max_awz=float(self.declare_parameter("max_awz", 0.50).value),
@@ -108,13 +108,8 @@ class ScanM20UdpSafetyBridge(Node):
             max_vx=self.command_limits.max_vx,
             max_wz=self.command_limits.max_wz,
             max_x=float(self.declare_parameter("udp_max_x", 0.50).value),
-            yaw_deadzone=float(
-                self.declare_parameter("udp_yaw_deadzone", 0.50).value),
-            max_yaw=float(self.declare_parameter("udp_max_yaw", 1.00).value),
-            yaw_start_threshold=float(
-                self.declare_parameter("yaw_start_threshold", 0.04).value),
-            yaw_stop_threshold=float(
-                self.declare_parameter("yaw_stop_threshold", 0.02).value),
+            max_yaw=float(self.declare_parameter("udp_max_yaw", 0.60).value),
+            yaw_zero_epsilon=self.command_limits.yaw_zero_epsilon,
         )
         self.udp_yaw_slew_rate = max(
             0.0,
@@ -332,10 +327,10 @@ class ScanM20UdpSafetyBridge(Node):
         if any((
             abs(self.preview_command.vx) > 1e-6,
             abs(self.preview_command.wz)
-            > self.mapping_limits.yaw_stop_threshold,
+            >= self.mapping_limits.yaw_zero_epsilon,
             abs(pending_command.vx) > 1e-6,
             abs(pending_command.wz)
-            > self.mapping_limits.yaw_stop_threshold,
+            >= self.mapping_limits.yaw_zero_epsilon,
         )):
             blockers.append("command_not_zero")
         return blockers

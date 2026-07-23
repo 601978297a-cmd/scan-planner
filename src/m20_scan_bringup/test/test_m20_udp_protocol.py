@@ -21,13 +21,11 @@ from m20_scan_bringup.m20_udp_protocol import (
 
 
 LIMITS = UdpMappingLimits(
-    max_vx=0.05,
+    max_vx=0.15,
     max_wz=0.20,
     max_x=0.50,
-    yaw_deadzone=0.50,
-    max_yaw=1.00,
-    yaw_start_threshold=0.04,
-    yaw_stop_threshold=0.02,
+    max_yaw=0.60,
+    yaw_zero_epsilon=0.04,
 )
 
 
@@ -75,19 +73,19 @@ def test_mapper_rejects_reverse_lateral_and_nonfinite_values():
 
 def test_mapper_scales_forward_and_saturates():
     mapper = UdpCommandMapper(LIMITS)
-    assert mapper.map(0.025, 0.0, 0.0).x == 0.25
-    assert mapper.map(0.05, 0.0, 0.0).x == 0.50
+    assert mapper.map(0.075, 0.0, 0.0).x == 0.25
+    assert mapper.map(0.15, 0.0, 0.0).x == 0.50
     assert mapper.map(1.0, 0.0, 0.0).x == 0.50
 
 
-def test_mapper_applies_yaw_deadzone_and_hysteresis():
+def test_mapper_scales_yaw_linearly_after_zero_epsilon():
     mapper = UdpCommandMapper(LIMITS)
     assert mapper.map(0.0, 0.0, 0.03).yaw == 0.0
-    assert math.isclose(mapper.map(0.0, 0.0, 0.04).yaw, 0.60)
-    assert mapper.map(0.0, 0.0, 0.03).yaw > 0.50
-    assert mapper.map(0.0, 0.0, 0.02).yaw == 0.0
-    assert mapper.map(0.0, 0.0, -0.03).yaw == 0.0
-    assert math.isclose(mapper.map(0.0, 0.0, -0.20).yaw, -1.0)
+    assert math.isclose(mapper.map(0.0, 0.0, 0.04).yaw, 0.12)
+    assert math.isclose(mapper.map(0.0, 0.0, 0.10).yaw, 0.30)
+    assert math.isclose(mapper.map(0.0, 0.0, 0.20).yaw, 0.60)
+    assert math.isclose(mapper.map(0.0, 0.0, -0.10).yaw, -0.30)
+    assert math.isclose(mapper.map(0.0, 0.0, -1.00).yaw, -0.60)
 
 
 def test_udp_yaw_slew_ramps_without_overshoot():
