@@ -20,6 +20,7 @@ def test_combined_launch_starts_relocation_and_direct_udp_backend():
     assert '"control_backend": "direct_udp"' in launch
     assert '"enable_nav_cmd_output": "false"' in launch
     assert '"enable_udp_output": "false"' in launch
+    assert '"require_navigation_enable": "false"' in launch
 
 
 def test_direct_udp_backend_uses_scan_command_topic_and_super_lio_mapping():
@@ -31,6 +32,8 @@ def test_direct_udp_backend_uses_scan_command_topic_and_super_lio_mapping():
 
     assert '"direct_udp"' in dry_run_launch
     assert 'executable="scan_m20_direct_udp_bridge"' in dry_run_launch
+    assert '"require_navigation_enable"' in dry_run_launch
+    assert '"require_navigation_enable": ParameterValue(' in dry_run_launch
     assert "command_topic: /scan/cmd_vel_debug" in config
     assert "udp_target_host: 10.21.31.103" in config
     assert "udp_target_port: 30000" in config

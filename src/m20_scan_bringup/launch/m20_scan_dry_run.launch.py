@@ -23,6 +23,8 @@ def generate_launch_description():
     control_backend = LaunchConfiguration("control_backend")
     enable_nav_cmd_output = LaunchConfiguration("enable_nav_cmd_output")
     enable_udp_output = LaunchConfiguration("enable_udp_output")
+    require_navigation_enable = LaunchConfiguration(
+        "require_navigation_enable")
     sensor_pose_adapter_backend = LaunchConfiguration(
         "sensor_pose_adapter_backend")
     sensor_pose_adapter_parameters = [{
@@ -63,6 +65,12 @@ def generate_launch_description():
             choices=["true", "false"],
             description="Allow the UDP backend to open the real M20 motion link; it still starts DISARMED.",
         ),
+        DeclareLaunchArgument(
+            "require_navigation_enable",
+            default_value="true",
+            choices=["true", "false"],
+            description="Require the controller navigation-enable gate.",
+        ),
         Node(
             package="m20_sensor_pose_adapter_cpp",
             executable="sensor_pose_adapter_cpp",
@@ -102,7 +110,11 @@ def generate_launch_description():
             executable="closed_loop_controller",
             name="closed_loop_controller",
             output="screen",
-            parameters=[controller_yaml],
+            parameters=[
+                controller_yaml,
+                {"require_navigation_enable": ParameterValue(
+                    require_navigation_enable, value_type=bool)},
+            ],
             remappings=[
                 ("planning/bspline", "/planning/bspline"),
                 ("body_pose", "/lio/robo/odom"),

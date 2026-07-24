@@ -28,6 +28,7 @@ def generate_launch_description():
             "control_backend": "direct_udp",
             "enable_nav_cmd_output": "false",
             "enable_udp_output": "false",
+            "require_navigation_enable": "false",
         }.items(),
     )
 
