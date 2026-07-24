@@ -12,7 +12,7 @@ def generate_launch_description():
 
     localization = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
-            os.path.join(super_lio_share, "launch", "relocation_3d_bbs.py")
+            os.path.join(super_lio_share, "launch", "relocation_points.py")
         ),
     )
     navigation = IncludeLaunchDescription(
