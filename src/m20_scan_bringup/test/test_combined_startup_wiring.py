@@ -14,8 +14,7 @@ def test_combined_launch_starts_relocation_and_direct_udp_backend():
         PACKAGE_ROOT / "launch/m20_localization_navigation.launch.py")
 
     assert 'get_package_share_directory("super_lio")' in launch
-    assert '"relocation.py"' in launch
-    assert '"rviz": "false"' in launch
+    assert '"relocation_3d_bbs.py"' in launch
     assert '"m20_scan_dry_run.launch.py"' in launch
     assert '"control_backend": "direct_udp"' in launch
     assert '"enable_nav_cmd_output": "false"' in launch
@@ -88,6 +87,10 @@ def test_combined_startup_script_uses_only_version1_workspaces():
     script = _read(
         REPOSITORY_ROOT / "scripts/start_m20_localization_navigation.sh")
 
+    assert (
+        "/home/nvidia/scanplanner版本1/3d_bbs/ros2_test/install/setup.bash"
+        in script
+    )
     assert (
         "/home/nvidia/scanplanner版本1/Super-LIO/install/setup.bash"
         in script
