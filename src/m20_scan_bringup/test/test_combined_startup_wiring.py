@@ -40,6 +40,7 @@ def test_nav_cmd_backend_has_independent_real_output_gate():
     assert "motion_info_topic: /MOTION_INFO" in config
     assert "navigation_enabled_topic: /scan/navigation_enabled" in config
     assert "<exec_depend>drdds</exec_depend>" in package
+    assert "<exec_depend>scan_planner</exec_depend>" in package
 
 
 def test_scan_workspace_contains_required_drdds_interfaces():
