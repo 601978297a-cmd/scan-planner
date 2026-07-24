@@ -59,6 +59,24 @@ class UdpCommandMapper:
         return math.copysign(self.limits.max_yaw * ratio, wz)
 
 
+def scale_direct_udp_axis(
+    vx: float,
+    vy: float,
+    wz: float,
+    scale_x: float,
+    scale_y: float,
+    scale_yaw: float,
+) -> UdpAxis:
+    values = (vx, vy, wz, scale_x, scale_y, scale_yaw)
+    if not all(math.isfinite(value) for value in values):
+        return UdpAxis()
+    return UdpAxis(
+        x=max(-1.0, min(1.0, vx * scale_x)),
+        y=max(-1.0, min(1.0, vy * scale_y)),
+        yaw=max(-3.0, min(3.0, wz * scale_yaw)),
+    )
+
+
 def slew_udp_axis(
     current: UdpAxis,
     target: UdpAxis,
@@ -133,12 +151,24 @@ def build_axis_packet(axis: UdpAxis, timestamp: Optional[str] = None) -> bytes:
         21,
         {
             "X": round(float(axis.x), 3),
-            "Y": 0.0,
+            "Y": round(float(axis.y), 3),
             "Z": 0,
             "Roll": 0,
             "Pitch": 0,
             "Yaw": round(float(axis.yaw), 3),
         },
+        timestamp=timestamp,
+    )
+
+
+def build_motion_state_packet(
+    state: int,
+    timestamp: Optional[str] = None,
+) -> bytes:
+    return build_packet(
+        2,
+        22,
+        {"MotionParam": int(state)},
         timestamp=timestamp,
     )
 
@@ -193,6 +223,9 @@ class M20UdpLink:
 
     def send_axis(self, axis: UdpAxis) -> None:
         self.socket.sendto(build_axis_packet(axis), self.target)
+
+    def send_motion_state(self, state: int) -> None:
+        self.socket.sendto(build_motion_state_packet(state), self.target)
 
     def poll_heartbeat_error(self) -> Optional[int]:
         latest = None

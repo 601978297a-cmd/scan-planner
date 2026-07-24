@@ -26,6 +26,7 @@ setup(
             "sensor_pose_adapter = m20_scan_bringup.sensor_pose_adapter:main",
             "scan_m20_safety_bridge = m20_scan_bringup.scan_m20_safety_bridge:main",
             "scan_m20_udp_safety_bridge = m20_scan_bringup.scan_m20_udp_safety_bridge:main",
+            "scan_m20_direct_udp_bridge = m20_scan_bringup.scan_m20_direct_udp_bridge:main",
         ],
     },
 )

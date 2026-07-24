@@ -1,0 +1,11 @@
+scan_m20_direct_udp_bridge:
+  ros__parameters:
+    command_topic: /scan/cmd_vel_debug
+    udp_target_host: 10.21.31.103
+    udp_target_port: 30000
+    scale_x: 3.0
+    scale_y: 3.0
+    scale_yaw: 2.0
+    timeout_ms: 500.0
+    send_stand_on_start: true
+

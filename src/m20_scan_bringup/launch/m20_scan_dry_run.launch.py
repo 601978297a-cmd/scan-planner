@@ -18,6 +18,8 @@ def generate_launch_description():
         bringup_share, "config", "m20_scan_safety_bridge.yaml")
     udp_bridge_yaml = os.path.join(
         bringup_share, "config", "m20_scan_udp_bridge.yaml")
+    direct_udp_yaml = os.path.join(
+        bringup_share, "config", "m20_scan_direct_udp.yaml")
     control_backend = LaunchConfiguration("control_backend")
     enable_nav_cmd_output = LaunchConfiguration("enable_nav_cmd_output")
     enable_udp_output = LaunchConfiguration("enable_udp_output")
@@ -40,8 +42,8 @@ def generate_launch_description():
         DeclareLaunchArgument(
             "control_backend",
             default_value="nav_cmd",
-            choices=["nav_cmd", "udp"],
-            description="Select exactly one guarded M20 control backend.",
+            choices=["nav_cmd", "udp", "direct_udp"],
+            description="Select exactly one M20 control backend.",
         ),
         DeclareLaunchArgument(
             "sensor_pose_adapter_backend",
@@ -133,6 +135,16 @@ def generate_launch_description():
             ],
             condition=IfCondition(PythonExpression([
                 "'", control_backend, "' == 'udp'",
+            ])),
+        ),
+        Node(
+            package="m20_scan_bringup",
+            executable="scan_m20_direct_udp_bridge",
+            name="scan_m20_direct_udp_bridge",
+            output="screen",
+            parameters=[direct_udp_yaml],
+            condition=IfCondition(PythonExpression([
+                "'", control_backend, "' == 'direct_udp'",
             ])),
         ),
     ])

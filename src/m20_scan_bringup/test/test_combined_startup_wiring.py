@@ -9,7 +9,7 @@ def _read(path):
     return path.read_text(encoding="utf-8")
 
 
-def test_combined_launch_starts_relocation_and_guarded_nav_cmd_backend():
+def test_combined_launch_starts_relocation_and_direct_udp_backend():
     launch = _read(
         PACKAGE_ROOT / "launch/m20_localization_navigation.launch.py")
 
@@ -17,9 +17,29 @@ def test_combined_launch_starts_relocation_and_guarded_nav_cmd_backend():
     assert '"relocation.py"' in launch
     assert '"rviz": "false"' in launch
     assert '"m20_scan_dry_run.launch.py"' in launch
-    assert '"control_backend": "nav_cmd"' in launch
-    assert '"enable_nav_cmd_output": "true"' in launch
+    assert '"control_backend": "direct_udp"' in launch
+    assert '"enable_nav_cmd_output": "false"' in launch
     assert '"enable_udp_output": "false"' in launch
+
+
+def test_direct_udp_backend_uses_scan_command_topic_and_super_lio_mapping():
+    dry_run_launch = _read(
+        PACKAGE_ROOT / "launch/m20_scan_dry_run.launch.py")
+    config = _read(
+        PACKAGE_ROOT / "config/m20_scan_direct_udp.yaml")
+    setup = _read(PACKAGE_ROOT / "setup.py")
+
+    assert '"direct_udp"' in dry_run_launch
+    assert 'executable="scan_m20_direct_udp_bridge"' in dry_run_launch
+    assert "command_topic: /scan/cmd_vel_debug" in config
+    assert "udp_target_host: 10.21.31.103" in config
+    assert "udp_target_port: 30000" in config
+    assert "scale_x: 3.0" in config
+    assert "scale_y: 3.0" in config
+    assert "scale_yaw: 2.0" in config
+    assert "timeout_ms: 500.0" in config
+    assert "send_stand_on_start: true" in config
+    assert "scan_m20_direct_udp_bridge =" in setup
 
 
 def test_nav_cmd_backend_has_independent_real_output_gate():

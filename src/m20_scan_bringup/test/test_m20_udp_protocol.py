@@ -12,10 +12,12 @@ from m20_scan_bringup.m20_udp_protocol import (
     UdpMappingLimits,
     build_axis_packet,
     build_heartbeat_packet,
+    build_motion_state_packet,
     build_packet,
     find_conflicting_processes,
     heartbeat_error_code,
     parse_packet,
+    scale_direct_udp_axis,
     slew_udp_axis,
 )
 
@@ -31,7 +33,7 @@ LIMITS = UdpMappingLimits(
 
 def test_packet_matches_hqs_header_and_json_layout():
     packet = build_axis_packet(
-        UdpAxis(x=0.25, yaw=-0.75),
+        UdpAxis(x=0.25, y=-0.20, yaw=-0.75),
         timestamp="2026-07-17 12:00:00",
     )
     assert packet[:4] == PACKET_MAGIC
@@ -43,12 +45,37 @@ def test_packet_matches_hqs_header_and_json_layout():
     assert patrol["Command"] == 21
     assert patrol["Items"] == {
         "X": 0.25,
-        "Y": 0.0,
+        "Y": -0.20,
         "Z": 0,
         "Roll": 0,
         "Pitch": 0,
         "Yaw": -0.75,
     }
+
+
+def test_direct_udp_scaling_matches_super_lio_and_clamps():
+    axis = scale_direct_udp_axis(
+        0.15, -0.20, 0.20, 3.0, 3.0, 2.0)
+    assert math.isclose(axis.x, 0.45)
+    assert math.isclose(axis.y, -0.60)
+    assert math.isclose(axis.yaw, 0.40)
+
+    assert scale_direct_udp_axis(
+        2.0, -2.0, 2.0, 3.0, 3.0, 2.0
+    ) == UdpAxis(x=1.0, y=-1.0, yaw=3.0)
+    assert scale_direct_udp_axis(
+        math.nan, 0.0, 0.0, 3.0, 3.0, 2.0
+    ) == UdpAxis()
+
+
+def test_motion_state_packet_matches_super_lio_stand_command():
+    packet = build_motion_state_packet(
+        1, timestamp="2026-07-24 12:00:00")
+    patrol = parse_packet(packet)["PatrolDevice"]
+
+    assert patrol["Type"] == 2
+    assert patrol["Command"] == 22
+    assert patrol["Items"] == {"MotionParam": 1}
 
 
 def test_heartbeat_ack_parser_accepts_only_matching_response():
