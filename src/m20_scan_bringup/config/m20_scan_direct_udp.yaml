@@ -7,5 +7,4 @@ scan_m20_direct_udp_bridge:
     scale_y: 3.0
     scale_yaw: 2.0
     timeout_ms: 500.0
-    send_stand_on_start: true
-
+    send_stand_on_start: false

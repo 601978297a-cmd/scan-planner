@@ -33,7 +33,7 @@ class ScanM20DirectUdpBridge(Node):
             / 1000.0,
         )
         self.send_stand_on_start = bool(
-            self.declare_parameter("send_stand_on_start", True).value)
+            self.declare_parameter("send_stand_on_start", False).value)
 
         self.udp_link = M20UdpLink(
             self.udp_target_host,
@@ -41,6 +41,7 @@ class ScanM20DirectUdpBridge(Node):
         )
         self.last_command_time = None
         self.timeout_stop_sent = True
+        self.navigation_active = False
         self.closed = False
 
         self.command_subscription = self.create_subscription(
@@ -75,11 +76,14 @@ class ScanM20DirectUdpBridge(Node):
             self.scale_y,
             self.scale_yaw,
         )
+        if not self.navigation_active and axis == UdpAxis():
+            return
         try:
             self.udp_link.send_axis(axis)
         except OSError as exc:
             self.get_logger().error(f"Failed to send UDP command: {exc}")
             return
+        self.navigation_active = True
         self.last_command_time = time.monotonic()
         self.timeout_stop_sent = False
 
@@ -99,10 +103,12 @@ class ScanM20DirectUdpBridge(Node):
     def close(self) -> None:
         if self.closed:
             return
-        try:
-            self.udp_link.send_axis(UdpAxis())
-        except OSError as exc:
-            self.get_logger().error(f"Failed to send UDP shutdown stop: {exc}")
+        if self.navigation_active:
+            try:
+                self.udp_link.send_axis(UdpAxis())
+            except OSError as exc:
+                self.get_logger().error(
+                    f"Failed to send UDP shutdown stop: {exc}")
         self.udp_link.close()
         self.closed = True
 
@@ -119,4 +125,3 @@ def main(args=None):
     finally:
         node.destroy_node()
         rclpy.shutdown()
-

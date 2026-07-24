@@ -96,7 +96,11 @@ def generate_launch_description():
             executable="scan_planner_node",
             name="scan_planner_node",
             output="screen",
-            parameters=[planner_yaml],
+            parameters=[
+                planner_yaml,
+                {"fsm.require_navigation_enable": ParameterValue(
+                    require_navigation_enable, value_type=bool)},
+            ],
             remappings=[
                 ("body_pose", "/lio/robo/odom"),
                 ("sensor_pose", "/scan/sensor_pose"),

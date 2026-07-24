@@ -34,11 +34,14 @@ def make_node(monkeypatch):
     return node, link
 
 
-def test_direct_bridge_sends_stand_and_scaled_twist(monkeypatch):
+def test_direct_bridge_stays_silent_until_nonzero_twist(monkeypatch):
     rclpy.init()
     node, link = make_node(monkeypatch)
     try:
-        assert link.motion_states == [1]
+        assert link.motion_states == []
+
+        node._command_callback(Twist())
+        assert link.axes == []
 
         command = Twist()
         command.linear.x = 0.15
@@ -59,7 +62,9 @@ def test_direct_bridge_timeout_and_shutdown_send_zero(monkeypatch):
     rclpy.init()
     node, link = make_node(monkeypatch)
     try:
-        node._command_callback(Twist())
+        command = Twist()
+        command.linear.x = 0.1
+        node._command_callback(command)
         node.last_command_time = time.monotonic() - 1.0
         node._timeout_callback()
         assert link.axes[-1] == UdpAxis()
@@ -70,6 +75,21 @@ def test_direct_bridge_timeout_and_shutdown_send_zero(monkeypatch):
 
         node.destroy_node()
         assert link.axes[-1] == UdpAxis()
+        assert link.closed
+    finally:
+        if not node.closed:
+            node.destroy_node()
+        rclpy.shutdown()
+
+
+def test_direct_bridge_shutdown_before_navigation_stays_silent(monkeypatch):
+    rclpy.init()
+    node, link = make_node(monkeypatch)
+    try:
+        node._command_callback(Twist())
+        node.destroy_node()
+        assert link.axes == []
+        assert link.motion_states == []
         assert link.closed
     finally:
         if not node.closed:

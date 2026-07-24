@@ -33,6 +33,7 @@ def test_direct_udp_backend_uses_scan_command_topic_and_super_lio_mapping():
     assert '"direct_udp"' in dry_run_launch
     assert 'executable="scan_m20_direct_udp_bridge"' in dry_run_launch
     assert '"require_navigation_enable"' in dry_run_launch
+    assert '"fsm.require_navigation_enable": ParameterValue(' in dry_run_launch
     assert '"require_navigation_enable": ParameterValue(' in dry_run_launch
     assert "command_topic: /scan/cmd_vel_debug" in config
     assert "udp_target_host: 10.21.31.103" in config
@@ -41,7 +42,7 @@ def test_direct_udp_backend_uses_scan_command_topic_and_super_lio_mapping():
     assert "scale_y: 3.0" in config
     assert "scale_yaw: 2.0" in config
     assert "timeout_ms: 500.0" in config
-    assert "send_stand_on_start: true" in config
+    assert "send_stand_on_start: false" in config
     assert "scan_m20_direct_udp_bridge =" in setup
 
 
