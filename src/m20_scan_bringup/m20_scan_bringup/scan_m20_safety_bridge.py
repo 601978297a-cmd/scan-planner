@@ -50,7 +50,7 @@ NAVIGATION_STATE_QOS = QoSProfile(
 
 class ScanM20SafetyBridge(Node):
     REQUIRED_MOTION_STATE = 17
-    REQUIRED_GAIT = 0x3002
+    REQUIRED_GAIT = 0x1001
 
     def __init__(self):
         super().__init__("scan_m20_safety_bridge")
@@ -303,7 +303,7 @@ class ScanM20SafetyBridge(Node):
         if self.motion_state != self.REQUIRED_MOTION_STATE:
             reasons.append("motion_state_not_rl")
         if self.gait_state != self.REQUIRED_GAIT:
-            reasons.append("gait_not_agile_flat")
+            reasons.append("gait_not_basic")
         return reasons
 
     def _arm_bridge(self, source: str) -> bool:

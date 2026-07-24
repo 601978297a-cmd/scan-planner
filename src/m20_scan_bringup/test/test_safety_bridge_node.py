@@ -54,13 +54,13 @@ def test_motion_info_tracks_state_gait_and_finite_feedback():
             vel_y=0.0,
             vel_yaw=0.0,
             motion_state=SimpleNamespace(state=17),
-            gait_state=SimpleNamespace(gait=0x3002),
+            gait_state=SimpleNamespace(gait=0x1001),
         ))
 
         node._motion_info_callback(msg)
 
         assert node.motion_state == 17
-        assert node.gait_state == 0x3002
+        assert node.gait_state == 0x1001
         assert node.motion_info_finite is True
         assert node._robot_state_reasons() == []
     finally:
@@ -73,10 +73,10 @@ def test_robot_state_reasons_fail_closed():
     node = ScanM20SafetyBridge()
     try:
         assert "motion_state_not_rl" in node._robot_state_reasons()
-        assert "gait_not_agile_flat" in node._robot_state_reasons()
+        assert "gait_not_basic" in node._robot_state_reasons()
 
         node.motion_state = 17
-        node.gait_state = 0x3002
+        node.gait_state = 0x1001
         node.motion_info_finite = False
         assert node._robot_state_reasons() == ["motion_info_nonfinite"]
     finally:
