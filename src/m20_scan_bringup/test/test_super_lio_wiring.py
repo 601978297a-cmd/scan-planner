@@ -46,11 +46,11 @@ def test_planner_and_controller_use_matching_forward_speed_limit():
     planner = _read("config/m20_scan_planner.yaml")
     controller = _read("config/m20_scan_controller.yaml")
 
-    assert "manager.max_vel: 0.50" in planner
-    assert "optimization.max_vel: 0.50" in planner
+    assert "manager.max_vel: 0.30" in planner
+    assert "optimization.max_vel: 0.30" in planner
     assert "manager.max_acc: 0.20" in planner
     assert "optimization.max_acc: 0.20" in planner
-    assert "max_vx: 0.50" in controller
+    assert "max_vx: 0.30" in controller
 
 
 def test_operator_and_legacy_safety_configs_use_super_lio():
