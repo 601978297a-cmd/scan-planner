@@ -37,8 +37,8 @@ def test_direct_udp_backend_uses_scan_command_topic_and_super_lio_mapping():
     assert "command_topic: /scan/cmd_vel_debug" in config
     assert "udp_target_host: 10.21.31.103" in config
     assert "udp_target_port: 30000" in config
-    assert "scale_x: 6.666666666666667" in config
-    assert "scale_y: 3.0" in config
+    assert "scale_x: 2.0" in config
+    assert "scale_y: 2.0" in config
     assert "scale_yaw: 5.0" in config
     assert "timeout_ms: 500.0" in config
     assert "send_stand_on_start: false" in config

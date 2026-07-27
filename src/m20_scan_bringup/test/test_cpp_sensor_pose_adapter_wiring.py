@@ -45,7 +45,7 @@ def test_cpp_adapter_and_planner_use_reliable_paired_cloud_qos():
         WORKSPACE_SRC /
         "planner/plan_env/src/grid_map.cpp")
 
-    assert "rclcpp::KeepLast(5)).reliable().durability_volatile()" in adapter
+    assert "rclcpp::KeepLast(1)).reliable().durability_volatile()" in adapter
     assert "cloud_topic_,\n      reliable_pair_qos" in adapter
     assert "synced_cloud_topic_, reliable_pair_qos" in adapter
     assert "output_topic_, reliable_pair_qos" in adapter
@@ -54,13 +54,28 @@ def test_cpp_adapter_and_planner_use_reliable_paired_cloud_qos():
         "reliable_pair_qos.reliability = "
         "RMW_QOS_POLICY_RELIABILITY_RELIABLE"
     ) in planner
-    assert "reliable_pair_qos.depth = 5" in planner
+    assert "reliable_pair_qos.depth = 1" in planner
+    assert "SyncPolicyCloudPose(1)" in planner
     assert (
         'cloud_sub_->subscribe(node_, "cloud", reliable_pair_qos)'
     ) in planner
     assert (
         'lidar_pose_sub_->subscribe(node_, "sensor_pose", reliable_pair_qos)'
     ) in planner
+
+
+def test_planner_voxel_filters_cloud_before_raycasting():
+    planner = _read(
+        WORKSPACE_SRC /
+        "planner/plan_env/src/grid_map.cpp")
+
+    filter_call = planner.index("voxel_filter.filter(latest_cloud);")
+    raycast_loop = planner.index(
+        "for (size_t i = 0; i < latest_cloud.points.size(); ++i)")
+
+    assert '#include <pcl/filters/voxel_grid.h>' in planner
+    assert '"grid_map.voxel_leaf_size"' in planner
+    assert filter_call < raycast_loop
 
 
 def test_cpp_adapter_publishes_stamp_before_pose_and_cloud():

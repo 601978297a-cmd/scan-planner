@@ -87,6 +87,7 @@ struct MappingParameters {
 
   /* mapping sensor input */
   string sensor_type_;
+  double voxel_leaf_size_;
   bool cloud_is_world_;
   bool need_extrinsic_;
   Eigen::Matrix4d lidar_extrinsic_;

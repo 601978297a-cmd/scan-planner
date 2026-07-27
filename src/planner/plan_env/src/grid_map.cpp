@@ -3,6 +3,7 @@
 #include <limits>
 #include <string>
 #include <geometry_msgs/msg/transform_stamped.hpp>
+#include <pcl/filters/voxel_grid.h>
 
 namespace
 {
@@ -46,6 +47,7 @@ void GridMap::initMap(rclcpp::Node *node)
   load_parameter(node_, "grid_map.depth_filter_margin", mp_.depth_filter_margin_, -1);
   load_parameter(node_, "grid_map.k_depth_scaling_factor", mp_.k_depth_scaling_factor_, -1.0);
   load_parameter(node_, "grid_map.skip_pixel", mp_.skip_pixel_, -1);
+  load_parameter(node_, "grid_map.voxel_leaf_size", mp_.voxel_leaf_size_, 0.0);
 
   load_parameter(node_, "grid_map.p_hit", mp_.p_hit_, -1.0);
   load_parameter(node_, "grid_map.p_miss", mp_.p_miss_, -1.0);
@@ -150,13 +152,13 @@ void GridMap::initMap(rclcpp::Node *node)
   {
     auto reliable_pair_qos = rmw_qos_profile_sensor_data;
     reliable_pair_qos.reliability = RMW_QOS_POLICY_RELIABILITY_RELIABLE;
-    reliable_pair_qos.depth = 5;
+    reliable_pair_qos.depth = 1;
     cloud_sub_ = std::make_shared<message_filters::Subscriber<sensor_msgs::msg::PointCloud2>>();
     lidar_pose_sub_ = std::make_shared<message_filters::Subscriber<nav_msgs::msg::Odometry>>();
     cloud_sub_->subscribe(node_, "cloud", reliable_pair_qos);
     lidar_pose_sub_->subscribe(node_, "sensor_pose", reliable_pair_qos);
     sync_cloud_pose_.reset(new message_filters::Synchronizer<SyncPolicyCloudPose>(
-        SyncPolicyCloudPose(100), *cloud_sub_, *lidar_pose_sub_));
+        SyncPolicyCloudPose(1), *cloud_sub_, *lidar_pose_sub_));
     sync_cloud_pose_->registerCallback(
         std::bind(&GridMap::cloudPoseCallback, this, std::placeholders::_1,
                   std::placeholders::_2));
@@ -895,8 +897,27 @@ void GridMap::cloudCallback(const sensor_msgs::msg::PointCloud2::ConstSharedPtr 
     return;
   }
 
+  auto input_cloud = std::make_shared<pcl::PointCloud<pcl::PointXYZ>>();
+  pcl::fromROSMsg(*img, *input_cloud);
+  const std::size_t input_point_count = input_cloud->size();
+
   pcl::PointCloud<pcl::PointXYZ> latest_cloud;
-  pcl::fromROSMsg(*img, latest_cloud);
+  if (mp_.voxel_leaf_size_ > 0.0)
+  {
+    pcl::VoxelGrid<pcl::PointXYZ> voxel_filter;
+    const float leaf_size = static_cast<float>(mp_.voxel_leaf_size_);
+    voxel_filter.setLeafSize(leaf_size, leaf_size, leaf_size);
+    voxel_filter.setInputCloud(input_cloud);
+    voxel_filter.filter(latest_cloud);
+    RCLCPP_INFO_THROTTLE(
+        node_->get_logger(), *node_->get_clock(), 2000,
+        "[GridMap] voxel %.3f m: %zu -> %zu points",
+        mp_.voxel_leaf_size_, input_point_count, latest_cloud.size());
+  }
+  else
+  {
+    latest_cloud = std::move(*input_cloud);
+  }
 
   md_.has_cloud_ = true;
 

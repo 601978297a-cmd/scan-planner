@@ -43,7 +43,7 @@ public:
       declare_parameter<std::string>("synced_cloud_topic", "/scan/front_cloud_synced")),
     max_tf_wait_sec_(declare_parameter<double>("max_tf_wait_sec", 0.5)),
     retry_period_sec_(declare_parameter<double>("retry_period_sec", 0.02)),
-    max_queue_size_(declare_parameter<int64_t>("max_queue_size", 16)),
+    max_queue_size_(declare_parameter<int64_t>("max_queue_size", 1)),
     tf_buffer_(get_clock())
   {
     if (max_tf_wait_sec_ < 0.0) {
@@ -65,7 +65,7 @@ public:
       tf_buffer_, this, true);
 
     const auto reliable_pair_qos =
-      rclcpp::QoS(rclcpp::KeepLast(5)).reliable().durability_volatile();
+      rclcpp::QoS(rclcpp::KeepLast(1)).reliable().durability_volatile();
     pose_pub_ = create_publisher<nav_msgs::msg::Odometry>(
       output_topic_, reliable_pair_qos);
     cloud_stamp_pub_ = create_publisher<std_msgs::msg::Header>(

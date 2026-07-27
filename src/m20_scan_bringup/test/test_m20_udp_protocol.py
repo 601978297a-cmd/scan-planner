@@ -68,6 +68,12 @@ def test_direct_udp_scaling_matches_super_lio_and_clamps():
     ) == UdpAxis()
 
 
+def test_direct_udp_scaling_maps_half_meter_per_second_to_full_axis():
+    assert scale_direct_udp_axis(
+        0.5, -0.5, 0.2, 2.0, 2.0, 5.0
+    ) == UdpAxis(x=1.0, y=-1.0, yaw=1.0)
+
+
 def test_motion_state_packet_matches_super_lio_stand_command():
     packet = build_motion_state_packet(
         1, timestamp="2026-07-24 12:00:00")

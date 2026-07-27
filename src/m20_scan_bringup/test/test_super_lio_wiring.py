@@ -29,6 +29,7 @@ def test_planner_uses_cloud_republished_with_matching_sensor_pose():
     assert '"synced_cloud_topic": "/scan/front_cloud_synced"' in launch
     assert '("cloud", "/scan/front_cloud_synced")' in launch
     assert '"max_tf_wait_sec": 0.5' in launch
+    assert '"max_queue_size": 1' in launch
 
 
 def test_planner_keeps_front_cloud_in_sensor_coordinates():
@@ -37,6 +38,18 @@ def test_planner_keeps_front_cloud_in_sensor_coordinates():
     assert "grid_map.frame_id: world" in planner
     assert "grid_map.cloud_is_world: false" in planner
     assert "grid_map.need_extrinsic: false" in planner
+    assert "grid_map.voxel_leaf_size: 0.07" in planner
+
+
+def test_planner_and_controller_use_matching_forward_speed_limit():
+    planner = _read("config/m20_scan_planner.yaml")
+    controller = _read("config/m20_scan_controller.yaml")
+
+    assert "manager.max_vel: 0.50" in planner
+    assert "optimization.max_vel: 0.50" in planner
+    assert "manager.max_acc: 0.20" in planner
+    assert "optimization.max_acc: 0.20" in planner
+    assert "max_vx: 0.50" in controller
 
 
 def test_operator_and_legacy_safety_configs_use_super_lio():

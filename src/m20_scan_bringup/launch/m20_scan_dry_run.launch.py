@@ -36,7 +36,7 @@ def generate_launch_description():
         "synced_cloud_topic": "/scan/front_cloud_synced",
         "max_tf_wait_sec": 0.5,
         "retry_period_sec": 0.02,
-        "max_queue_size": 16,
+        "max_queue_size": 1,
         "use_sim_time": False,
     }]
 
