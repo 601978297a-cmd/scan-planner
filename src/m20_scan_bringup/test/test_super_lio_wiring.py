@@ -29,7 +29,7 @@ def test_planner_uses_cloud_republished_with_matching_sensor_pose():
     assert '"synced_cloud_topic": "/scan/front_cloud_synced"' in launch
     assert '("cloud", "/scan/front_cloud_synced")' in launch
     assert '"max_tf_wait_sec": 0.5' in launch
-    assert '"max_queue_size": 1' in launch
+    assert '"max_queue_size": 2' in launch
 
 
 def test_planner_keeps_front_cloud_in_sensor_coordinates():

@@ -43,7 +43,7 @@ public:
       declare_parameter<std::string>("synced_cloud_topic", "/scan/front_cloud_synced")),
     max_tf_wait_sec_(declare_parameter<double>("max_tf_wait_sec", 0.5)),
     retry_period_sec_(declare_parameter<double>("retry_period_sec", 0.02)),
-    max_queue_size_(declare_parameter<int64_t>("max_queue_size", 1)),
+    max_queue_size_(declare_parameter<int64_t>("max_queue_size", 2)),
     tf_buffer_(get_clock())
   {
     if (max_tf_wait_sec_ < 0.0) {
