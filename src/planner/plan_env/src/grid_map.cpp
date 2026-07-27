@@ -16,7 +16,9 @@ void load_parameter(rclcpp::Node *node, const std::string &name, T &value, const
 }
 }  // namespace
 
-void GridMap::initMap(rclcpp::Node *node)
+void GridMap::initMap(
+    rclcpp::Node *node,
+    const rclcpp::CallbackGroup::SharedPtr &mapping_callback_group)
 {
   node_ = node;
 
@@ -57,6 +59,8 @@ void GridMap::initMap(rclcpp::Node *node)
   load_parameter(node_, "grid_map.max_ray_length", mp_.max_ray_length_, -0.1);
 
   load_parameter(node_, "grid_map.vis_height", mp_.vis_height_, 0.3);
+  load_parameter(node_, "grid_map.visualization_period_ms",
+                 mp_.visualization_period_ms_, 200);
   load_parameter(node_, "grid_map.show_occ_time", mp_.show_occ_time_, false);
 
   load_parameter(node_, "grid_map.frame_id", mp_.frame_id_, string("world"));
@@ -96,6 +100,7 @@ void GridMap::initMap(rclcpp::Node *node)
   mp_.clamp_max_log_ = logit(mp_.p_max_);
   mp_.min_occupancy_log_ = logit(mp_.p_occ_);
   mp_.unknown_flag_ = 0.01;
+  mp_.visualization_period_ms_ = std::max(50, mp_.visualization_period_ms_);
   mp_.map_sliding_thresh_vox_ = std::max(1, static_cast<int>(std::ceil(mp_.map_sliding_thresh_ * mp_.resolution_inv_)));
 
   cout << "hit: " << mp_.prob_hit_log_ << endl;
@@ -135,13 +140,17 @@ void GridMap::initMap(rclcpp::Node *node)
 
   /* init callback */
   tf_broadcaster_ = std::make_shared<tf2_ros::TransformBroadcaster>(*node_);
+  rclcpp::SubscriptionOptions mapping_options;
+  mapping_options.callback_group = mapping_callback_group;
 
   if (mp_.sensor_type_ == "depth")
   {
     depth_sub_ = std::make_shared<message_filters::Subscriber<sensor_msgs::msg::Image>>();
     depth_pose_sub_ = std::make_shared<message_filters::Subscriber<nav_msgs::msg::Odometry>>();
-    depth_sub_->subscribe(node_, "depth", rmw_qos_profile_sensor_data);
-    depth_pose_sub_->subscribe(node_, "sensor_pose", rmw_qos_profile_sensor_data);
+    depth_sub_->subscribe(
+        node_, "depth", rmw_qos_profile_sensor_data, mapping_options);
+    depth_pose_sub_->subscribe(
+        node_, "sensor_pose", rmw_qos_profile_sensor_data, mapping_options);
 
     sync_image_pose_.reset(new message_filters::Synchronizer<SyncPolicyImagePose>(
         SyncPolicyImagePose(100), *depth_sub_, *depth_pose_sub_));
@@ -155,8 +164,10 @@ void GridMap::initMap(rclcpp::Node *node)
     reliable_pair_qos.depth = 1;
     cloud_sub_ = std::make_shared<message_filters::Subscriber<sensor_msgs::msg::PointCloud2>>();
     lidar_pose_sub_ = std::make_shared<message_filters::Subscriber<nav_msgs::msg::Odometry>>();
-    cloud_sub_->subscribe(node_, "cloud", reliable_pair_qos);
-    lidar_pose_sub_->subscribe(node_, "sensor_pose", reliable_pair_qos);
+    cloud_sub_->subscribe(
+        node_, "cloud", reliable_pair_qos, mapping_options);
+    lidar_pose_sub_->subscribe(
+        node_, "sensor_pose", reliable_pair_qos, mapping_options);
     sync_cloud_pose_.reset(new message_filters::Synchronizer<SyncPolicyCloudPose>(
         SyncPolicyCloudPose(1), *cloud_sub_, *lidar_pose_sub_));
     sync_cloud_pose_->registerCallback(
@@ -165,13 +176,16 @@ void GridMap::initMap(rclcpp::Node *node)
   }
 
   sliding_map_frame_sub_ = node_->create_subscription<nav_msgs::msg::Odometry>(
-      "body_pose", rclcpp::SensorDataQoS(),
-      std::bind(&GridMap::slidingMapFrameCallback, this, std::placeholders::_1));
+      "body_pose", rclcpp::SensorDataQoS().keep_last(1),
+      std::bind(&GridMap::slidingMapFrameCallback, this, std::placeholders::_1),
+      mapping_options);
 
   occ_timer_ = node_->create_wall_timer(std::chrono::milliseconds(50),
-                                        std::bind(&GridMap::updateOccupancyCallback, this));
-  vis_timer_ = node_->create_wall_timer(std::chrono::milliseconds(50),
-                                        std::bind(&GridMap::visCallback, this));
+                                        std::bind(&GridMap::updateOccupancyCallback, this),
+                                        mapping_callback_group);
+  vis_timer_ = node_->create_wall_timer(
+      std::chrono::milliseconds(mp_.visualization_period_ms_),
+      std::bind(&GridMap::visCallback, this), mapping_callback_group);
 
   map_pub_ = node_->create_publisher<sensor_msgs::msg::PointCloud2>("grid_map/occupancy", rclcpp::SensorDataQoS());
   map_inf_pub_ = node_->create_publisher<sensor_msgs::msg::PointCloud2>("grid_map/occupancy_inflate", rclcpp::SensorDataQoS());
@@ -196,6 +210,7 @@ void GridMap::initMap(rclcpp::Node *node)
   md_.max_fuse_time_ = 0.0;
   md_.local_bound_min_ = mp_.map_bound_min_idx_;
   md_.local_bound_max_ = mp_.map_bound_max_idx_;
+  publishPlanningSnapshot();
 
   // rand_noise_ = uniform_real_distribution<double>(-0.2, 0.2);
   // rand_noise2_ = normal_distribution<double>(0, 0.2);
@@ -740,9 +755,11 @@ Eigen::Vector3d GridMap::closetPointInMap(const Eigen::Vector3d &pt, const Eigen
 
 void GridMap::visCallback()
 {
-
-  publishMap();
-  publishMapInflate(true);
+  if (occupancy_version_ != last_visualized_version_)
+  {
+    publishMaps(true, true);
+    last_visualized_version_ = occupancy_version_;
+  }
   publishSlidingMapFrame();
   publishSlidingMapBBox();
   publishDepthCloud();
@@ -761,6 +778,8 @@ void GridMap::updateOccupancyCallback()
     projectDepthImage();
   // t2 = ros::Time::now();
   raycastProcess();
+  ++occupancy_version_;
+  publishPlanningSnapshot();
   // t3 = ros::Time::now();
 
   // t4 = ros::Time::now();
@@ -777,6 +796,57 @@ void GridMap::updateOccupancyCallback()
 
   md_.occ_need_update_ = false;
   md_.use_cloud_update_ = false;
+}
+
+void GridMap::publishPlanningSnapshot()
+{
+  auto snapshot = std::make_shared<PlanningMapSnapshot>();
+  snapshot->occupancy_buffer_inflate = md_.occupancy_buffer_inflate_;
+  snapshot->map_min_boundary = mp_.map_min_boundary_;
+  snapshot->map_max_boundary = mp_.map_max_boundary_;
+  snapshot->map_voxel_num = mp_.map_voxel_num_;
+  snapshot->resolution_inv = mp_.resolution_inv_;
+  snapshot->double_cylinder_offset = mp_.double_cylinder_offset_;
+
+  std::shared_ptr<const PlanningMapSnapshot> immutable_snapshot = snapshot;
+  std::atomic_store_explicit(
+      &planning_snapshot_, std::move(immutable_snapshot),
+      std::memory_order_release);
+}
+
+int GridMap::getInflateOccupancy(Eigen::Vector3d pos, double yaw) const
+{
+  const auto snapshot = std::atomic_load_explicit(
+      &planning_snapshot_, std::memory_order_acquire);
+  if (!snapshot)
+    return -1;
+
+  const auto occupancy_at = [&snapshot](const Eigen::Vector3d &query) {
+    if ((query.array() < snapshot->map_min_boundary.array() + 1e-4).any() ||
+        (query.array() > snapshot->map_max_boundary.array() - 1e-4).any())
+      return -1;
+
+    const Eigen::Vector3i id =
+        (query * snapshot->resolution_inv).array().floor().cast<int>();
+    Eigen::Vector3i local_id;
+    for (int dim = 0; dim < 3; ++dim)
+    {
+      local_id(dim) = id(dim) % snapshot->map_voxel_num(dim);
+      if (local_id(dim) < 0)
+        local_id(dim) += snapshot->map_voxel_num(dim);
+    }
+    const int address =
+        local_id(0) * snapshot->map_voxel_num(1) * snapshot->map_voxel_num(2) +
+        local_id(1) * snapshot->map_voxel_num(2) + local_id(2);
+    return static_cast<int>(snapshot->occupancy_buffer_inflate[address]);
+  };
+
+  const Eigen::Vector3d heading(std::cos(yaw), std::sin(yaw), 0.0);
+  const int front_occupancy =
+      occupancy_at(pos + snapshot->double_cylinder_offset * heading);
+  if (front_occupancy != 0)
+    return front_occupancy;
+  return occupancy_at(pos - snapshot->double_cylinder_offset * heading);
 }
 
 void GridMap::depthPoseCallback(const sensor_msgs::msg::Image::ConstSharedPtr &img,
@@ -974,86 +1044,81 @@ void GridMap::cloudCallback(const sensor_msgs::msg::PointCloud2::ConstSharedPtr 
 
 void GridMap::publishMap()
 {
-
-  if (map_pub_->get_subscription_count() == 0)
-    return;
-
-  pcl::PointXYZ pt;
-  pcl::PointCloud<pcl::PointXYZ> cloud;
-
-  Eigen::Vector3i min_cut = mp_.map_bound_min_idx_;
-  Eigen::Vector3i max_cut = mp_.map_bound_max_idx_;
-
-  for (int x = min_cut(0); x <= max_cut(0); ++x)
-    for (int y = min_cut(1); y <= max_cut(1); ++y)
-      for (int z = min_cut(2); z <= max_cut(2); ++z)
-      {
-        if (md_.occupancy_buffer_[toAddress(x, y, z)] < mp_.min_occupancy_log_)
-          continue;
-
-        Eigen::Vector3d pos;
-        indexToPos(Eigen::Vector3i(x, y, z), pos);
-        if (md_.has_ray_pose_ && pos(2) > md_.ray_pos_(2) + mp_.vis_height_)
-          continue;
-        pt.x = pos(0);
-        pt.y = pos(1);
-        pt.z = pos(2);
-        cloud.push_back(pt);
-      }
-
-  cloud.width = cloud.points.size();
-  cloud.height = 1;
-  cloud.is_dense = true;
-  cloud.header.frame_id = mp_.frame_id_;
-  sensor_msgs::msg::PointCloud2 cloud_msg;
-
-  pcl::toROSMsg(cloud, cloud_msg);
-  cloud_msg.header.stamp = node_->now();
-  map_pub_->publish(cloud_msg);
+  publishMaps(true, false);
 }
 
 void GridMap::publishMapInflate(bool all_info)
 {
+  (void)all_info;
+  publishMaps(false, true);
+}
 
-  if (map_inf_pub_->get_subscription_count() == 0)
+void GridMap::publishMaps(bool publish_occupancy, bool publish_inflated)
+{
+  const bool occupancy_requested =
+      publish_occupancy && map_pub_->get_subscription_count() > 0;
+  const bool inflated_requested =
+      publish_inflated && map_inf_pub_->get_subscription_count() > 0;
+  if (!occupancy_requested && !inflated_requested)
     return;
 
   pcl::PointXYZ pt;
-  pcl::PointCloud<pcl::PointXYZ> cloud;
+  pcl::PointCloud<pcl::PointXYZ> occupancy_cloud;
+  pcl::PointCloud<pcl::PointXYZ> inflated_cloud;
 
   Eigen::Vector3i min_cut = mp_.map_bound_min_idx_;
   Eigen::Vector3i max_cut = mp_.map_bound_max_idx_;
 
-  const std::vector<char> &inflate_buffer = md_.occupancy_buffer_inflate_;
   for (int x = min_cut(0); x <= max_cut(0); ++x)
     for (int y = min_cut(1); y <= max_cut(1); ++y)
       for (int z = min_cut(2); z <= max_cut(2); ++z)
       {
-        if (inflate_buffer[toAddress(x, y, z)] == 0)
+        const int address = toAddress(x, y, z);
+        const bool occupied =
+            occupancy_requested &&
+            md_.occupancy_buffer_[address] >= mp_.min_occupancy_log_;
+        const bool inflated =
+            inflated_requested &&
+            md_.occupancy_buffer_inflate_[address] != 0;
+        if (!occupied && !inflated)
           continue;
 
         Eigen::Vector3d pos;
         indexToPos(Eigen::Vector3i(x, y, z), pos);
         if (md_.has_ray_pose_ && pos(2) > md_.ray_pos_(2) + mp_.vis_height_)
           continue;
-
         pt.x = pos(0);
         pt.y = pos(1);
         pt.z = pos(2);
-        cloud.push_back(pt);
+        if (occupied)
+          occupancy_cloud.push_back(pt);
+        if (inflated)
+          inflated_cloud.push_back(pt);
       }
 
-  cloud.width = cloud.points.size();
-  cloud.height = 1;
-  cloud.is_dense = true;
-  cloud.header.frame_id = mp_.frame_id_;
-  sensor_msgs::msg::PointCloud2 cloud_msg;
-
-  pcl::toROSMsg(cloud, cloud_msg);
-  cloud_msg.header.stamp = node_->now();
-  map_inf_pub_->publish(cloud_msg);
-
-  // ROS_INFO("pub map");
+  const auto stamp = node_->now();
+  if (occupancy_requested)
+  {
+    occupancy_cloud.width = occupancy_cloud.points.size();
+    occupancy_cloud.height = 1;
+    occupancy_cloud.is_dense = true;
+    occupancy_cloud.header.frame_id = mp_.frame_id_;
+    sensor_msgs::msg::PointCloud2 cloud_msg;
+    pcl::toROSMsg(occupancy_cloud, cloud_msg);
+    cloud_msg.header.stamp = stamp;
+    map_pub_->publish(cloud_msg);
+  }
+  if (inflated_requested)
+  {
+    inflated_cloud.width = inflated_cloud.points.size();
+    inflated_cloud.height = 1;
+    inflated_cloud.is_dense = true;
+    inflated_cloud.header.frame_id = mp_.frame_id_;
+    sensor_msgs::msg::PointCloud2 cloud_msg;
+    pcl::toROSMsg(inflated_cloud, cloud_msg);
+    cloud_msg.header.stamp = stamp;
+    map_inf_pub_->publish(cloud_msg);
+  }
 }
 
 void GridMap::publishSlidingMapFrame()

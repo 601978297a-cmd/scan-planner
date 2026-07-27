@@ -92,6 +92,8 @@ namespace scan_planner
 
     /* ROS utils */
     rclcpp::Node *node_{nullptr};
+    rclcpp::CallbackGroup::SharedPtr planning_callback_group_;
+    rclcpp::CallbackGroup::SharedPtr mapping_callback_group_;
     rclcpp::TimerBase::SharedPtr exec_timer_, safety_timer_;
     rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr goal_sub_;
     rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;

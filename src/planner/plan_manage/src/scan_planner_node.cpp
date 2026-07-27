@@ -13,7 +13,8 @@ int main(int argc, char **argv)
   {
     scan_planner::SCANReplanFSM planner;
     planner.init(node.get());
-    rclcpp::executors::SingleThreadedExecutor executor;
+    rclcpp::executors::MultiThreadedExecutor executor(
+        rclcpp::ExecutorOptions(), 2);
     executor.add_node(node);
     executor.spin();
   }

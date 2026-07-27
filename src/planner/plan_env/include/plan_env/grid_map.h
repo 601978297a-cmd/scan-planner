@@ -4,10 +4,13 @@
 #include <Eigen/Eigen>
 #include <Eigen/StdVector>
 #include <algorithm>
+#include <atomic>
+#include <cstdint>
 #include <cv_bridge/cv_bridge.h>
 #include <cmath>
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <iostream>
+#include <memory>
 #include <random>
 #include <nav_msgs/msg/odometry.hpp>
 #include <queue>
@@ -83,6 +86,7 @@ struct MappingParameters {
 
   /* visualization and computation time display */
   double vis_height_, ground_height_;
+  int visualization_period_ms_;
   bool show_occ_time_;
 
   /* mapping sensor input */
@@ -170,7 +174,7 @@ public:
   inline void setOccupied(Eigen::Vector3d pos);
   inline int getOccupancy(Eigen::Vector3d pos);
   inline int getOccupancy(Eigen::Vector3i id);
-  inline int getInflateOccupancy(Eigen::Vector3d pos, double yaw);
+  int getInflateOccupancy(Eigen::Vector3d pos, double yaw) const;
 
   inline void boundIndex(Eigen::Vector3i& id);
   inline bool isUnknown(const Eigen::Vector3i& id);
@@ -178,7 +182,8 @@ public:
   inline bool isKnownFree(const Eigen::Vector3i& id);
   inline bool isKnownOccupied(const Eigen::Vector3i& id);
 
-  void initMap(rclcpp::Node* node);
+  void initMap(rclcpp::Node* node,
+               const rclcpp::CallbackGroup::SharedPtr& mapping_callback_group);
 
   void publishMap();
   void publishMapInflate(bool all_info = false);
@@ -201,8 +206,20 @@ public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
 private:
+  struct PlanningMapSnapshot {
+    std::vector<char> occupancy_buffer_inflate;
+    Eigen::Vector3d map_min_boundary;
+    Eigen::Vector3d map_max_boundary;
+    Eigen::Vector3i map_voxel_num;
+    double resolution_inv;
+    double double_cylinder_offset;
+  };
+
   MappingParameters mp_;
   MappingData md_;
+  std::shared_ptr<const PlanningMapSnapshot> planning_snapshot_;
+  uint64_t occupancy_version_{0};
+  uint64_t last_visualized_version_{0};
 
   // get depth image and sensor pose
   void depthPoseCallback(const sensor_msgs::msg::Image::ConstSharedPtr& img,
@@ -220,6 +237,8 @@ private:
   // main update process
   void projectDepthImage();
   void raycastProcess();
+  void publishPlanningSnapshot();
+  void publishMaps(bool publish_occupancy, bool publish_inflated);
 
   inline void inflatePoint(const Eigen::Vector3i& pt, int inf_step_xy, int inf_step_z_up, int inf_step_z_down, vector<Eigen::Vector3i>& pts);
   inline int getInflateOccupancyFromBuffer(Eigen::Vector3d pos, const std::vector<char>& buffer);
@@ -374,17 +393,6 @@ inline int GridMap::getOccupancy(Eigen::Vector3d pos) {
   posToIndex(pos, id);
 
   return md_.occupancy_buffer_[toAddress(id)] > mp_.min_occupancy_log_ ? 1 : 0;
-}
-
-inline int GridMap::getInflateOccupancy(Eigen::Vector3d pos, double yaw) {
-  Eigen::Vector3d heading(std::cos(yaw), std::sin(yaw), 0.0);
-  Eigen::Vector3d front = pos + mp_.double_cylinder_offset_ * heading;
-  Eigen::Vector3d rear = pos - mp_.double_cylinder_offset_ * heading;
-
-  int front_occ = getInflateOccupancyFromBuffer(front, md_.occupancy_buffer_inflate_);
-  if (front_occ != 0) return front_occ;
-
-  return getInflateOccupancyFromBuffer(rear, md_.occupancy_buffer_inflate_);
 }
 
 inline int GridMap::getInflateOccupancyFromBuffer(Eigen::Vector3d pos, const std::vector<char>& buffer) {

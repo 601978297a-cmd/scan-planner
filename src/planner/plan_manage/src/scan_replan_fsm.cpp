@@ -68,27 +68,42 @@ namespace scan_planner
     }
 
     /* initialize main modules */
+    planning_callback_group_ = node_->create_callback_group(
+        rclcpp::CallbackGroupType::MutuallyExclusive);
+    mapping_callback_group_ = node_->create_callback_group(
+        rclcpp::CallbackGroupType::MutuallyExclusive);
+    rclcpp::SubscriptionOptions planning_options;
+    planning_options.callback_group = planning_callback_group_;
+
     visualization_.reset(new PlanningVisualization(node_, self_inflation_frame_id_));
     planner_manager_.reset(new SCANPlannerManager);
-    planner_manager_->initPlanModules(node_, visualization_);
+    planner_manager_->initPlanModules(
+        node_, visualization_, mapping_callback_group_);
 
     /* callback */
     exec_timer_ = node_->create_wall_timer(std::chrono::milliseconds(10),
-                                           std::bind(&SCANReplanFSM::execFSMCallback, this));
+                                           std::bind(&SCANReplanFSM::execFSMCallback, this),
+                                           planning_callback_group_);
     safety_timer_ = node_->create_wall_timer(std::chrono::milliseconds(50),
-                                             std::bind(&SCANReplanFSM::checkCollisionCallback, this));
+                                             std::bind(&SCANReplanFSM::checkCollisionCallback, this),
+                                             planning_callback_group_);
+    auto odom_qos = rclcpp::SensorDataQoS();
+    odom_qos.keep_last(1);
     odom_sub_ = node_->create_subscription<nav_msgs::msg::Odometry>(
-        "body_pose", rclcpp::SensorDataQoS(),
-        std::bind(&SCANReplanFSM::odometryCallback, this, std::placeholders::_1));
+        "body_pose", odom_qos,
+        std::bind(&SCANReplanFSM::odometryCallback, this, std::placeholders::_1),
+        planning_options);
     go2_execution_frozen_sub_ = node_->create_subscription<std_msgs::msg::Bool>(
         "planning/go2_execution_frozen", 10,
-        std::bind(&SCANReplanFSM::go2ExecutionFrozenCallback, this, std::placeholders::_1));
+        std::bind(&SCANReplanFSM::go2ExecutionFrozenCallback, this, std::placeholders::_1),
+        planning_options);
     if (require_navigation_enable_)
       navigation_enabled_sub_ = node_->create_subscription<std_msgs::msg::Bool>(
           navigation_enabled_topic,
           rclcpp::QoS(1).reliable().transient_local(),
           std::bind(&SCANReplanFSM::navigationEnabledCallback, this,
-                    std::placeholders::_1));
+                    std::placeholders::_1),
+          planning_options);
 
     bspline_pub_ = node_->create_publisher<scan_planner_msgs::msg::Bspline>("planning/bspline", 10);
     data_disp_pub_ = node_->create_publisher<scan_planner_msgs::msg::DataDisp>("planning/data_display", 100);
@@ -98,10 +113,12 @@ namespace scan_planner
     if (navi_mode_ == NAVI_MODE::MANUAL_TARGET)
       goal_sub_ = node_->create_subscription<geometry_msgs::msg::PoseStamped>(
           "move_base_simple/goal", 1,
-          std::bind(&SCANReplanFSM::rvizGoalCallback, this, std::placeholders::_1));
+          std::bind(&SCANReplanFSM::rvizGoalCallback, this, std::placeholders::_1),
+          planning_options);
     else if (navi_mode_ == NAVI_MODE::REFERENCE_PATH)
       path_sub_ = node_->create_subscription<nav_msgs::msg::Path>(
-          "initial_path", 1, std::bind(&SCANReplanFSM::pathCallback, this, std::placeholders::_1));
+          "initial_path", 1, std::bind(&SCANReplanFSM::pathCallback, this, std::placeholders::_1),
+          planning_options);
     else if (navi_mode_ == NAVI_MODE::PRESET_TARGET)
       RCLCPP_INFO(node_->get_logger(), "Preset waypoint mode will start after the first odometry message");
     else

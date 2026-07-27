@@ -57,10 +57,10 @@ def test_cpp_adapter_and_planner_use_reliable_paired_cloud_qos():
     assert "reliable_pair_qos.depth = 1" in planner
     assert "SyncPolicyCloudPose(1)" in planner
     assert (
-        'cloud_sub_->subscribe(node_, "cloud", reliable_pair_qos)'
+        'node_, "cloud", reliable_pair_qos, mapping_options'
     ) in planner
     assert (
-        'lidar_pose_sub_->subscribe(node_, "sensor_pose", reliable_pair_qos)'
+        'node_, "sensor_pose", reliable_pair_qos, mapping_options'
     ) in planner
 
 
@@ -76,6 +76,41 @@ def test_planner_voxel_filters_cloud_before_raycasting():
     assert '#include <pcl/filters/voxel_grid.h>' in planner
     assert '"grid_map.voxel_leaf_size"' in planner
     assert filter_call < raycast_loop
+
+
+def test_planner_separates_mapping_from_planning_callbacks():
+    node = _read(
+        WORKSPACE_SRC /
+        "planner/plan_manage/src/scan_planner_node.cpp")
+    fsm = _read(
+        WORKSPACE_SRC /
+        "planner/plan_manage/src/scan_replan_fsm.cpp")
+    grid_map = _read(
+        WORKSPACE_SRC /
+        "planner/plan_env/src/grid_map.cpp")
+
+    assert "MultiThreadedExecutor" in node
+    assert "ExecutorOptions(), 2" in node
+    assert "planning_callback_group_" in fsm
+    assert "mapping_callback_group_" in fsm
+    assert "CallbackGroupType::MutuallyExclusive" in fsm
+    assert "planning_options.callback_group = planning_callback_group_" in fsm
+    assert "mapping_options.callback_group = mapping_callback_group" in grid_map
+    assert "mapping_callback_group);" in grid_map
+
+
+def test_planner_reads_immutable_map_snapshot_and_limits_visualization_work():
+    grid_map = _read(
+        WORKSPACE_SRC /
+        "planner/plan_env/src/grid_map.cpp")
+    config = _read(PACKAGE_ROOT / "config/m20_scan_planner.yaml")
+
+    assert "std::atomic_store_explicit" in grid_map
+    assert "std::atomic_load_explicit" in grid_map
+    assert "publishPlanningSnapshot();" in grid_map
+    assert "publishMaps(true, true);" in grid_map
+    assert "occupancy_version_ != last_visualized_version_" in grid_map
+    assert "grid_map.visualization_period_ms: 200" in config
 
 
 def test_cpp_adapter_publishes_stamp_before_pose_and_cloud():
