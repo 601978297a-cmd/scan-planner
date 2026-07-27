@@ -35,7 +35,7 @@ scan_planner_node:
     grid_map.double_cylinder_offset: 0.20
     grid_map.body_height: 0.4
 
-    grid_map.obstacles_inflation_z_up: 0.4
+    grid_map.obstacles_inflation_z_up: 0.1
     grid_map.obstacles_inflation_z_down: 0.4
     grid_map.ground_height: 0.0
     grid_map.vis_height: 0.3
