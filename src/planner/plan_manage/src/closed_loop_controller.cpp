@@ -29,6 +29,10 @@ public:
     max_vx_ = declare_parameter<double>("max_vx", 0.75);
     max_vy_ = declare_parameter<double>("max_vy", 0.35);
     max_vyaw_ = std::min(declare_parameter<double>("max_vyaw", 1.0), kMaxVYawLimit);
+    max_accel_ = declare_parameter<double>("max_accel", 0.2);
+    max_decel_ = declare_parameter<double>("max_decel", 0.8);
+    max_yaw_accel_ = declare_parameter<double>("max_yaw_accel", 0.4);
+    max_yaw_decel_ = declare_parameter<double>("max_yaw_decel", 1.0);
     finish_dist_ = declare_parameter<double>("finish_dist", 0.15);
     require_navigation_enable_ =
         declare_parameter<bool>("require_navigation_enable", false);
@@ -75,6 +79,21 @@ private:
     return (norm <= max_norm || norm < 1e-6) ? value : value / norm * max_norm;
   }
 
+  static double slewLimit(
+      double target, double current, double accel_limit, double decel_limit, double dt)
+  {
+    if (dt <= 0.0)
+      return current;
+    if (accel_limit <= 0.0 || decel_limit <= 0.0)
+      return target;
+    if (target * current < 0.0)
+      target = 0.0;
+    const double rate_limit =
+        std::abs(target) > std::abs(current) ? accel_limit : decel_limit;
+    const double max_delta = rate_limit * dt;
+    return current + std::clamp(target - current, -max_delta, max_delta);
+  }
+
   double estimateDesiredYaw(double t_cur, const Eigen::Vector3d &pos_des) const
   {
     const double t_look = std::min(traj_duration_, t_cur + time_forward_);
@@ -89,7 +108,22 @@ private:
   {
     geometry_msgs::msg::Twist cmd;
     cmd.angular.z = std::clamp(yaw_rate, -max_vyaw_, max_vyaw_);
+    last_command_ = cmd;
     cmd_vel_pub_->publish(cmd);
+  }
+
+  void publishSmoothedCommand(const geometry_msgs::msg::Twist &target, double dt)
+  {
+    geometry_msgs::msg::Twist command;
+    command.linear.x = slewLimit(
+        target.linear.x, last_command_.linear.x, max_accel_, max_decel_, dt);
+    command.linear.y = slewLimit(
+        target.linear.y, last_command_.linear.y, max_accel_, max_decel_, dt);
+    command.angular.z = slewLimit(
+        target.angular.z, last_command_.angular.z,
+        max_yaw_accel_, max_yaw_decel_, dt);
+    last_command_ = command;
+    cmd_vel_pub_->publish(command);
   }
 
   void publishExecutionFrozen(bool frozen)
@@ -197,7 +231,9 @@ private:
     if (std::abs(yaw_error) > heading_error_threshold_)
     {
       publishExecutionFrozen(true);
-      publishStop(yaw_command);
+      geometry_msgs::msg::Twist rotate_command;
+      rotate_command.angular.z = yaw_command;
+      publishSmoothedCommand(rotate_command, dt);
       last_update_time_ = current_time;
       return;
     }
@@ -219,7 +255,7 @@ private:
     command.angular.z = yaw_command;
     if (exec_time_ >= traj_duration_ && pos_error.norm() < finish_dist_)
       command = geometry_msgs::msg::Twist();
-    cmd_vel_pub_->publish(command);
+    publishSmoothedCommand(command, dt);
   }
 
   rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_pub_;
@@ -240,8 +276,11 @@ private:
   double exec_time_{0.0};
   rclcpp::Time last_update_time_{0, 0, RCL_ROS_TIME};
   rclcpp::Time navigation_enabled_at_{0, 0, RCL_ROS_TIME};
+  geometry_msgs::msg::Twist last_command_;
   double time_forward_, heading_error_threshold_, kp_pos_, kp_yaw_;
-  double max_vx_, max_vy_, max_vyaw_, finish_dist_;
+  double max_vx_, max_vy_, max_vyaw_;
+  double max_accel_, max_decel_, max_yaw_accel_, max_yaw_decel_;
+  double finish_dist_;
 };
 }  // namespace scan_planner
 

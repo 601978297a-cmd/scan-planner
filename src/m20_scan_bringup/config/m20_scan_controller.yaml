@@ -10,4 +10,8 @@ closed_loop_controller:
     max_vx: 0.30
     max_vy: 0.08
     max_vyaw: 0.20
+    max_accel: 0.20
+    max_decel: 0.80
+    max_yaw_accel: 0.40
+    max_yaw_decel: 1.00
     finish_dist: 0.20
