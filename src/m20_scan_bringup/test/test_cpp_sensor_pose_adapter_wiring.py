@@ -37,7 +37,7 @@ def test_cpp_adapter_preserves_topics_and_three_execution_paths():
     assert "ExecutorOptions(), 2" in source
 
 
-def test_cpp_adapter_and_planner_use_reliable_paired_cloud_qos():
+def test_cpp_adapter_and_planner_use_latest_best_effort_cloud_qos():
     adapter = _read(
         WORKSPACE_SRC /
         "m20_sensor_pose_adapter_cpp/src/sensor_pose_adapter.cpp")
@@ -45,22 +45,18 @@ def test_cpp_adapter_and_planner_use_reliable_paired_cloud_qos():
         WORKSPACE_SRC /
         "planner/plan_env/src/grid_map.cpp")
 
-    assert "rclcpp::KeepLast(1)).reliable().durability_volatile()" in adapter
-    assert "cloud_topic_,\n      reliable_pair_qos" in adapter
+    assert "rclcpp::KeepLast(1)).best_effort().durability_volatile()" in adapter
+    assert "cloud_topic_,\n      latest_cloud_qos" in adapter
     assert "synced_cloud_topic_, reliable_pair_qos" in adapter
     assert "output_topic_, reliable_pair_qos" in adapter
     assert "rmw_qos_profile_sensor_data" in planner
-    assert (
-        "reliable_pair_qos.reliability = "
-        "RMW_QOS_POLICY_RELIABILITY_RELIABLE"
-    ) in planner
-    assert "reliable_pair_qos.depth = 1" in planner
+    assert "latest_pair_qos.depth = 1" in planner
     assert "SyncPolicyCloudPose(1)" in planner
     assert (
-        'node_, "cloud", reliable_pair_qos, mapping_options'
+        'node_, "cloud", latest_pair_qos, mapping_options'
     ) in planner
     assert (
-        'node_, "sensor_pose", reliable_pair_qos, mapping_options'
+        'node_, "sensor_pose", latest_pair_qos, mapping_options'
     ) in planner
 
 

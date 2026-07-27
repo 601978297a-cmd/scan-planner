@@ -38,7 +38,7 @@ def test_planner_keeps_front_cloud_in_sensor_coordinates():
     assert "grid_map.frame_id: world" in planner
     assert "grid_map.cloud_is_world: false" in planner
     assert "grid_map.need_extrinsic: false" in planner
-    assert "grid_map.voxel_leaf_size: 0.05" in planner
+    assert "grid_map.voxel_leaf_size: 0.07" in planner
     assert "grid_map.resolution: 0.10" in planner
 
 

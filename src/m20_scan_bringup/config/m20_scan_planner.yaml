@@ -17,7 +17,7 @@ scan_planner_node:
     grid_map.sensor_type: lidar
     grid_map.cloud_is_world: false
     grid_map.need_extrinsic: false
-    grid_map.voxel_leaf_size: 0.05
+    grid_map.voxel_leaf_size: 0.07
 
     grid_map.resolution: 0.10
     grid_map.sliding_map_size_x: 10.0

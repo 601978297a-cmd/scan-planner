@@ -66,6 +66,8 @@ public:
 
     const auto reliable_pair_qos =
       rclcpp::QoS(rclcpp::KeepLast(1)).reliable().durability_volatile();
+    const auto latest_cloud_qos =
+      rclcpp::QoS(rclcpp::KeepLast(1)).best_effort().durability_volatile();
     pose_pub_ = create_publisher<nav_msgs::msg::Odometry>(
       output_topic_, reliable_pair_qos);
     cloud_stamp_pub_ = create_publisher<std_msgs::msg::Header>(
@@ -77,7 +79,7 @@ public:
     cloud_options.callback_group = cloud_callback_group_;
     cloud_sub_ = create_subscription<PointCloud>(
       cloud_topic_,
-      reliable_pair_qos,
+      latest_cloud_qos,
       std::bind(&SensorPoseAdapter::cloud_callback, this, std::placeholders::_1),
       cloud_options);
 

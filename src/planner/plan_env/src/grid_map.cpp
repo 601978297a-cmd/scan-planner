@@ -159,15 +159,14 @@ void GridMap::initMap(
   }
   else if (mp_.sensor_type_ == "lidar")
   {
-    auto reliable_pair_qos = rmw_qos_profile_sensor_data;
-    reliable_pair_qos.reliability = RMW_QOS_POLICY_RELIABILITY_RELIABLE;
-    reliable_pair_qos.depth = 1;
+    auto latest_pair_qos = rmw_qos_profile_sensor_data;
+    latest_pair_qos.depth = 1;
     cloud_sub_ = std::make_shared<message_filters::Subscriber<sensor_msgs::msg::PointCloud2>>();
     lidar_pose_sub_ = std::make_shared<message_filters::Subscriber<nav_msgs::msg::Odometry>>();
     cloud_sub_->subscribe(
-        node_, "cloud", reliable_pair_qos, mapping_options);
+        node_, "cloud", latest_pair_qos, mapping_options);
     lidar_pose_sub_->subscribe(
-        node_, "sensor_pose", reliable_pair_qos, mapping_options);
+        node_, "sensor_pose", latest_pair_qos, mapping_options);
     sync_cloud_pose_.reset(new message_filters::Synchronizer<SyncPolicyCloudPose>(
         SyncPolicyCloudPose(1), *cloud_sub_, *lidar_pose_sub_));
     sync_cloud_pose_->registerCallback(
