@@ -19,6 +19,7 @@ def test_cpp_adapter_is_default_with_python_fallback():
     assert 'executable="sensor_pose_adapter_cpp"' in launch
     assert 'package="m20_scan_bringup"' in launch
     assert 'executable="sensor_pose_adapter"' in launch
+    assert '"max_latest_tf_age_sec": 0.12' in launch
 
 
 def test_cpp_adapter_preserves_topics_and_three_execution_paths():
@@ -33,11 +34,14 @@ def test_cpp_adapter_preserves_topics_and_three_execution_paths():
     assert "tf_buffer_, this, true" in source
     assert "cloud_options.callback_group = cloud_callback_group_" in source
     assert "match_callback_group_" in source
+    assert '"max_latest_tf_age_sec", 0.12' in source
+    assert "tf2::TimePointZero" in source
+    assert "transform_age_sec > max_latest_tf_age_sec_" in source
     assert "MultiThreadedExecutor" in source
     assert "ExecutorOptions(), 2" in source
 
 
-def test_cpp_adapter_and_planner_use_latest_best_effort_cloud_qos():
+def test_cpp_adapter_reliably_receives_clouds_and_planner_keeps_latest_pair():
     adapter = _read(
         WORKSPACE_SRC /
         "m20_sensor_pose_adapter_cpp/src/sensor_pose_adapter.cpp")
@@ -45,7 +49,7 @@ def test_cpp_adapter_and_planner_use_latest_best_effort_cloud_qos():
         WORKSPACE_SRC /
         "planner/plan_env/src/grid_map.cpp")
 
-    assert "rclcpp::KeepLast(1)).best_effort().durability_volatile()" in adapter
+    assert "rclcpp::KeepLast(2)).reliable().durability_volatile()" in adapter
     assert "cloud_topic_,\n      latest_cloud_qos" in adapter
     assert "synced_cloud_topic_, reliable_pair_qos" in adapter
     assert "output_topic_, reliable_pair_qos" in adapter

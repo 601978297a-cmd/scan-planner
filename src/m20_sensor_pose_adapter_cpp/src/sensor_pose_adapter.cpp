@@ -13,6 +13,7 @@
 #include "sensor_msgs/msg/point_cloud2.hpp"
 #include "std_msgs/msg/header.hpp"
 #include "tf2/exceptions.h"
+#include "tf2/time.h"
 #include "tf2_ros/buffer.h"
 #include "tf2_ros/transform_listener.h"
 
@@ -42,12 +43,16 @@ public:
     synced_cloud_topic_(
       declare_parameter<std::string>("synced_cloud_topic", "/scan/front_cloud_synced")),
     max_tf_wait_sec_(declare_parameter<double>("max_tf_wait_sec", 0.5)),
+    max_latest_tf_age_sec_(declare_parameter<double>("max_latest_tf_age_sec", 0.12)),
     retry_period_sec_(declare_parameter<double>("retry_period_sec", 0.02)),
     max_queue_size_(declare_parameter<int64_t>("max_queue_size", 2)),
     tf_buffer_(get_clock())
   {
     if (max_tf_wait_sec_ < 0.0) {
       throw std::invalid_argument("max_tf_wait_sec must be nonnegative");
+    }
+    if (max_latest_tf_age_sec_ < 0.0) {
+      throw std::invalid_argument("max_latest_tf_age_sec must be nonnegative");
     }
     if (retry_period_sec_ <= 0.0) {
       throw std::invalid_argument("retry_period_sec must be positive");
@@ -67,7 +72,7 @@ public:
     const auto reliable_pair_qos =
       rclcpp::QoS(rclcpp::KeepLast(1)).reliable().durability_volatile();
     const auto latest_cloud_qos =
-      rclcpp::QoS(rclcpp::KeepLast(1)).best_effort().durability_volatile();
+      rclcpp::QoS(rclcpp::KeepLast(2)).reliable().durability_volatile();
     pose_pub_ = create_publisher<nav_msgs::msg::Odometry>(
       output_topic_, reliable_pair_qos);
     cloud_stamp_pub_ = create_publisher<std_msgs::msg::Header>(
@@ -146,6 +151,13 @@ private:
           rclcpp::Time(pending->message->header.stamp),
           rclcpp::Duration::from_seconds(0.0));
       } catch (const tf2::TransformException & exception) {
+        if (lookup_latest_transform(*pending->message, transform)) {
+          if (!remove_if_front(pending)) {
+            continue;
+          }
+          publish_synced_pair(pending->message, transform);
+          continue;
+        }
         const auto & stamp = pending->message->header.stamp;
         RCLCPP_WARN_THROTTLE(
           get_logger(),
@@ -173,6 +185,32 @@ private:
     }
     pending_clouds_.pop_front();
     return true;
+  }
+
+  bool lookup_latest_transform(
+    const PointCloud & cloud,
+    geometry_msgs::msg::TransformStamped & transform)
+  {
+    if (max_latest_tf_age_sec_ == 0.0) {
+      return false;
+    }
+
+    try {
+      const auto latest_transform = tf_buffer_.lookupTransform(
+        target_frame_,
+        source_frame_,
+        tf2::TimePointZero);
+      const auto cloud_time = rclcpp::Time(cloud.header.stamp);
+      const auto transform_time = rclcpp::Time(latest_transform.header.stamp);
+      const double transform_age_sec = (cloud_time - transform_time).seconds();
+      if (transform_age_sec < 0.0 || transform_age_sec > max_latest_tf_age_sec_) {
+        return false;
+      }
+      transform = latest_transform;
+      return true;
+    } catch (const tf2::TransformException &) {
+      return false;
+    }
   }
 
   void publish_synced_pair(
@@ -216,6 +254,7 @@ private:
   const std::string cloud_stamp_topic_;
   const std::string synced_cloud_topic_;
   const double max_tf_wait_sec_;
+  const double max_latest_tf_age_sec_;
   const double retry_period_sec_;
   const int64_t max_queue_size_;
 

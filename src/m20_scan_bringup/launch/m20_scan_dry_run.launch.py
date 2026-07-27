@@ -35,6 +35,7 @@ def generate_launch_description():
         "cloud_stamp_topic": "/scan/front_cloud_stamp",
         "synced_cloud_topic": "/scan/front_cloud_synced",
         "max_tf_wait_sec": 0.5,
+        "max_latest_tf_age_sec": 0.12,
         "retry_period_sec": 0.02,
         "max_queue_size": 2,
         "use_sim_time": False,
