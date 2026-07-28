@@ -108,3 +108,14 @@ def test_mode3_startup_is_separate_from_mode1_startup():
     assert "m20_scan_dry_run.launch.py" in mode1_script
     assert "m20_mode3_navigation.launch.py" in mode3_script
     assert "/home/nvidia/Super-LIO/src/super_lio/map/map.yaml" in mode3_script
+
+
+def test_rviz_shows_mode3_map_and_global_paths():
+    rviz_config = _read("rviz/m20_scan.rviz")
+
+    assert "Name: 2D Global Map" in rviz_config
+    assert "Value: /map" in rviz_config
+    assert "Name: Smac Global Path" in rviz_config
+    assert "Value: /plan" in rviz_config
+    assert "Name: SCAN Reference Path" in rviz_config
+    assert "Value: /initial_path" in rviz_config
