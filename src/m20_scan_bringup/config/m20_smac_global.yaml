@@ -33,7 +33,7 @@ global_costmap:
     ros__parameters:
       use_sim_time: false
       global_frame: world
-      robot_base_frame: base_link
+      robot_base_frame: base_link_dog
       update_frequency: 1.0
       publish_frequency: 1.0
       transform_tolerance: 0.5
