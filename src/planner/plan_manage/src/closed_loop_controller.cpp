@@ -226,6 +226,14 @@ private:
     if (dt < 0.0 || dt > 0.2) dt = 0.0;
     const double t_eval = std::min(exec_time_, traj_duration_);
     Eigen::Vector3d pos_des = traj_[0].evaluateDeBoorT(t_eval);
+    const Eigen::Vector3d final_pos_des = traj_[0].evaluateDeBoorT(traj_duration_);
+    const Eigen::Vector2d final_pos_error(
+        final_pos_des.x() - odom_pos_.x(), final_pos_des.y() - odom_pos_.y());
+    if (final_pos_error.norm() < finish_dist_)
+    {
+      clearTrajectory();
+      return;
+    }
     const double yaw_error = normalizeAngle(estimateDesiredYaw(t_eval, pos_des) - odom_yaw_);
     const double yaw_command = std::clamp(kp_yaw_ * yaw_error, -max_vyaw_, max_vyaw_);
     if (std::abs(yaw_error) > heading_error_threshold_)
@@ -253,8 +261,6 @@ private:
     command.linear.x = std::clamp(c * vel_world.x() + s * vel_world.y(), -max_vx_, max_vx_);
     command.linear.y = std::clamp(-s * vel_world.x() + c * vel_world.y(), -max_vy_, max_vy_);
     command.angular.z = yaw_command;
-    if (exec_time_ >= traj_duration_ && pos_error.norm() < finish_dist_)
-      command = geometry_msgs::msg::Twist();
     publishSmoothedCommand(command, dt);
   }
 

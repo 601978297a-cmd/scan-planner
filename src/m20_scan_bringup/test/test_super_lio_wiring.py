@@ -68,6 +68,19 @@ def test_closed_loop_controller_smooths_normal_velocity_commands():
     assert "publishStop();" in controller
 
 
+def test_closed_loop_controller_stops_before_goal_heading_alignment():
+    controller = _read_source(
+        "planner/plan_manage/src/closed_loop_controller.cpp")
+
+    goal_stop = controller.index(
+        "if (final_pos_error.norm() < finish_dist_)")
+    heading_alignment = controller.index(
+        "if (std::abs(yaw_error) > heading_error_threshold_)")
+
+    assert goal_stop < heading_alignment
+    assert "clearTrajectory();" in controller[goal_stop:heading_alignment]
+
+
 def test_operator_and_legacy_safety_configs_use_super_lio():
     rviz = _read("rviz/m20_scan.rviz")
     safety = _read("config/m20_scan_safety_bridge.yaml")
