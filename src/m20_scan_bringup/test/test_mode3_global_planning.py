@@ -72,6 +72,10 @@ def test_mode3_launch_starts_smac_and_keeps_scan_mode_runtime_selectable():
     assert 'package="nav2_lifecycle_manager"' in mode3_launch
     assert 'executable="smac_to_scan_bridge"' in mode3_launch
     assert '"navi_mode": "3"' in mode3_launch
+    assert (
+        "/home/nvidia/Super-LIO/src/super_lio/map/map.yaml"
+        in mode3_launch
+    )
     assert 'default_value="1"' in scan_launch
     assert '"fsm.navi_mode": ParameterValue(' in scan_launch
     assert "fsm.navi_mode: 1" in planner_config
@@ -123,7 +127,10 @@ def test_mode3_startup_is_separate_from_mode1_startup():
     assert "m20_mode3_navigation.launch.py" not in mode1_script
     assert "m20_scan_dry_run.launch.py" in mode1_script
     assert "m20_mode3_navigation.launch.py" in mode3_script
-    assert "m20_mode3_map.yaml" in mode3_script
+    assert (
+        "/home/nvidia/Super-LIO/src/super_lio/map/map.yaml"
+        in mode3_script
+    )
     assert "/home/nvidia/Super-LIO/src/super_lio/map/map.pgm" in mode3_script
 
 

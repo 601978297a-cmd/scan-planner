@@ -12,8 +12,8 @@ def generate_launch_description():
     bringup_share = get_package_share_directory("m20_scan_bringup")
     smac_yaml = os.path.join(
         bringup_share, "config", "m20_smac_global.yaml")
-    default_map_yaml = os.path.join(
-        bringup_share, "config", "m20_mode3_map.yaml")
+    default_map_yaml = (
+        "/home/nvidia/Super-LIO/src/super_lio/map/map.yaml")
     map_yaml = LaunchConfiguration("map")
 
     scan_navigation = IncludeLaunchDescription(
