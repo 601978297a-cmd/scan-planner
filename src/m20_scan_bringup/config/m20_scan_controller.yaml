@@ -7,7 +7,7 @@ closed_loop_controller:
     heading_error_threshold: 0.6
     kp_pos: 0.5
     kp_yaw: 1.0
-    max_vx: 0.50
+    max_vx: 0.40
     max_vy: 0.08
     max_vyaw: 0.12
     max_accel: 0.20
