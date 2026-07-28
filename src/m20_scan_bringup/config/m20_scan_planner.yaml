@@ -59,7 +59,7 @@ scan_planner_node:
     grid_map.p_occ: 0.80
     grid_map.max_ray_length: 5.0
 
-    manager.max_vel: 0.30
+    manager.max_vel: 0.50
     manager.max_acc: 0.20
     manager.max_jerk: 2.0
     manager.control_points_distance: 0.2
@@ -71,6 +71,6 @@ scan_planner_node:
     optimization.lambda_feasibility: 0.1
     optimization.lambda_fitness: 1.0
     optimization.dist0: 0.25
-    optimization.max_vel: 0.30
+    optimization.max_vel: 0.50
     optimization.max_acc: 0.20
     optimization.order: 3
