@@ -39,7 +39,7 @@ global_costmap:
       transform_tolerance: 0.5
       resolution: 0.025
       track_unknown_space: true
-      robot_radius: 0.50
+      robot_radius: 0.30
       footprint_padding: 0.0
       plugins: ["static_layer", "inflation_layer"]
       always_send_full_costmap: true

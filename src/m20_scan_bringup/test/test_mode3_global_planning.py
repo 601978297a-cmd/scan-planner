@@ -77,6 +77,7 @@ def test_mode3_launch_starts_smac_and_keeps_scan_mode_runtime_selectable():
     assert 'plugin: "nav2_smac_planner/SmacPlanner2D"' in smac_config
     assert "downsampling_factor: 4" in smac_config
     assert "global_frame: world" in smac_config
+    assert "robot_radius: 0.30" in smac_config
 
 
 def test_mode3_replan_preserves_reference_path():
