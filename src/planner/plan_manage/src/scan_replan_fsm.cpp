@@ -2,6 +2,7 @@
 #include <plan_manage/scan_replan_fsm.h>
 #include <cmath>
 #include <stdexcept>
+#include <limits>
 
 namespace
 {
@@ -853,6 +854,18 @@ namespace scan_planner
       start_acc_.setZero();
     }
 
+    if (navi_mode_ == NAVI_MODE::REFERENCE_PATH)
+    {
+      bool success = callReboundReplan(false, false);
+      if (!success)
+      {
+        success = callReboundReplan(true, false);
+        if (!success)
+          success = callReboundReplan(true, true);
+      }
+      return success;
+    }
+
     if (!planner_manager_->planGlobalTraj(
             start_pt_,
             start_vel_,
@@ -1041,44 +1054,71 @@ namespace scan_planner
 
   void SCANReplanFSM::getLocalTarget()
   {
-    double t;
+    auto &global_data = planner_manager_->global_data_;
+    const double duration = global_data.global_duration_;
+    double target_t = duration;
 
-    double t_step = planning_horizon_ / 20 / planner_manager_->pp_.max_vel_;
-    double dist_min = 9999, dist_min_t = 0.0;
-    double target_t = planner_manager_->global_data_.global_duration_;
-    for (t = planner_manager_->global_data_.last_progress_time_; t < planner_manager_->global_data_.global_duration_; t += t_step)
-    {
-      Eigen::Vector3d pos_t = planner_manager_->global_data_.getPosition(t);
-      double dist = (pos_t - start_pt_).norm();
-
-      if (t < planner_manager_->global_data_.last_progress_time_ + 1e-5 && dist > planning_horizon_)
-      {
-        RCLCPP_ERROR(node_->get_logger(),
-                     "Local target progress mismatch: distance=%.3f horizon=%.3f progress_time=%.3f",
-                     dist, planning_horizon_, planner_manager_->global_data_.last_progress_time_);
-        local_target_pt_ = pos_t;
-        target_t = t;
-        planner_manager_->global_data_.last_progress_time_ = t;
-        break;
-      }
-      if (dist < dist_min)
-      {
-        dist_min = dist;
-        dist_min_t = t;
-      }
-      if (dist >= planning_horizon_)
-      {
-        local_target_pt_ = pos_t;
-        target_t = t;
-        planner_manager_->global_data_.last_progress_time_ = dist_min_t;
-        break;
-      }
-    }
-    if (t > planner_manager_->global_data_.global_duration_) // Last global point
+    if (duration <= 1e-6 || planning_horizon_ <= 1e-6)
     {
       local_target_pt_ = end_pt_;
-      target_t = planner_manager_->global_data_.global_duration_;
+      local_target_vel_ = Eigen::Vector3d::Zero();
+      return;
     }
+
+    double t_step = planning_horizon_ / 20.0 /
+                    std::max(1e-6, planner_manager_->pp_.max_vel_);
+    t_step = std::max(0.01, t_step);
+
+    const double search_start_t =
+        std::min(std::max(global_data.last_progress_time_, 0.0), duration);
+    double projection_t = search_start_t;
+    double min_dist_to_start = std::numeric_limits<double>::max();
+
+    for (double t = search_start_t; t < duration; t += t_step)
+    {
+      const Eigen::Vector3d pos_t = global_data.getPosition(t);
+      const double dist = (pos_t - start_pt_).norm();
+      if (dist < min_dist_to_start)
+      {
+        min_dist_to_start = dist;
+        projection_t = t;
+      }
+    }
+
+    const Eigen::Vector3d end_pos = global_data.getPosition(duration);
+    const double end_dist = (end_pos - start_pt_).norm();
+    if (end_dist < min_dist_to_start)
+    {
+      min_dist_to_start = end_dist;
+      projection_t = duration;
+    }
+
+    local_target_pt_ = end_pt_;
+    Eigen::Vector3d prev_pos = global_data.getPosition(projection_t);
+    double accumulated_length = 0.0;
+    bool found_target = false;
+
+    for (double t = projection_t + t_step; t < duration; t += t_step)
+    {
+      const Eigen::Vector3d pos_t = global_data.getPosition(t);
+      accumulated_length += (pos_t - prev_pos).norm();
+      if (accumulated_length >= planning_horizon_)
+      {
+        local_target_pt_ = pos_t;
+        target_t = t;
+        found_target = true;
+        break;
+      }
+      prev_pos = pos_t;
+    }
+
+    if (!found_target)
+    {
+      local_target_pt_ = end_pt_;
+      target_t = duration;
+    }
+
+    global_data.last_progress_time_ = projection_t;
 
     auto targetOccupancy = [&](const Eigen::Vector3d &pt) {
       return planner_manager_->grid_map_->getInflateOccupancy(pt, estimateYawFromSegment(odom_pos_, pt));
@@ -1089,12 +1129,12 @@ namespace scan_planner
       bool found_free_target = false;
       double adjusted_t = target_t;
 
-      for (double dt = 0.0; dt <= planner_manager_->global_data_.global_duration_; dt += t_step)
+      for (double dt = 0.0; dt <= duration; dt += t_step)
       {
         double t_forward = target_t + dt;
-        if (t_forward <= planner_manager_->global_data_.global_duration_)
+        if (t_forward <= duration)
         {
-          Eigen::Vector3d pt = planner_manager_->global_data_.getPosition(t_forward);
+          Eigen::Vector3d pt = global_data.getPosition(t_forward);
           if (targetOccupancy(pt) == 0)
           {
             local_target_pt_ = pt;
@@ -1105,9 +1145,9 @@ namespace scan_planner
         }
 
         double t_backward = target_t - dt;
-        if (t_backward >= std::max(0.0, dist_min_t))
+        if (t_backward >= projection_t)
         {
-          Eigen::Vector3d pt = planner_manager_->global_data_.getPosition(t_backward);
+          Eigen::Vector3d pt = global_data.getPosition(t_backward);
           if (targetOccupancy(pt) == 0)
           {
             local_target_pt_ = pt;
