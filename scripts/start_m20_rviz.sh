@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -eo pipefail
-
+export FASTRTPS_DEFAULT_PROFILES_FILE=/home/nvidia/.config/fastdds/eno1.xml
 ROS_SETUP="/opt/ros/humble/setup.bash"
 SUPER_LIO_SETUP="/home/nvidia/scanplanner版本1/Super-LIO/install/setup.bash"
 SCAN_SETUP="/home/nvidia/scanplanner版本1/SCAN-Planner/install/setup.bash"
