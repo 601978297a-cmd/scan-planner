@@ -65,6 +65,7 @@ def test_mode3_launch_starts_smac_and_keeps_scan_mode_runtime_selectable():
     scan_launch = _read("launch/m20_scan_dry_run.launch.py")
     planner_config = _read("config/m20_scan_planner.yaml")
     smac_config = _read("config/m20_smac_global.yaml")
+    map_config = _read("config/m20_mode3_map.yaml")
 
     assert 'package="nav2_map_server"' in mode3_launch
     assert 'package="nav2_planner"' in mode3_launch
@@ -78,6 +79,12 @@ def test_mode3_launch_starts_smac_and_keeps_scan_mode_runtime_selectable():
     assert "downsampling_factor: 4" in smac_config
     assert "global_frame: world" in smac_config
     assert "robot_radius: 0.30" in smac_config
+    assert "mode: trinary" in map_config
+    assert "free_thresh: 0.196" in map_config
+    assert (
+        "image: /home/nvidia/Super-LIO/src/super_lio/map/map.pgm"
+        in map_config
+    )
 
 
 def test_mode3_replan_preserves_reference_path():
@@ -108,7 +115,8 @@ def test_mode3_startup_is_separate_from_mode1_startup():
     assert "m20_mode3_navigation.launch.py" not in mode1_script
     assert "m20_scan_dry_run.launch.py" in mode1_script
     assert "m20_mode3_navigation.launch.py" in mode3_script
-    assert "/home/nvidia/Super-LIO/src/super_lio/map/map.yaml" in mode3_script
+    assert "m20_mode3_map.yaml" in mode3_script
+    assert "/home/nvidia/Super-LIO/src/super_lio/map/map.pgm" in mode3_script
 
 
 def test_rviz_shows_mode3_map_and_global_paths():
