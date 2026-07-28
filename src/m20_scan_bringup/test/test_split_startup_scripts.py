@@ -26,3 +26,13 @@ def test_navigation_script_preserves_combined_launch_arguments():
     assert "enable_udp_output:=false" in script
     assert "require_navigation_enable:=false" in script
     assert "relocation_points.py" not in script
+
+
+def test_localization_rviz_script_supervises_both_processes():
+    script = _read("start_m20_localization_rviz.sh")
+
+    assert '"$SCRIPT_DIR/start_m20_localization.sh" &' in script
+    assert '"$SCRIPT_DIR/start_m20_rviz.sh" &' in script
+    assert "wait -n" in script
+    assert "trap cleanup EXIT" in script
+    assert "kill \"$pid\"" in script
