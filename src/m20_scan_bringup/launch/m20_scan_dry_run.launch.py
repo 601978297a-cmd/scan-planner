@@ -20,6 +20,7 @@ def generate_launch_description():
         bringup_share, "config", "m20_scan_udp_bridge.yaml")
     direct_udp_yaml = os.path.join(
         bringup_share, "config", "m20_scan_direct_udp.yaml")
+    navi_mode = LaunchConfiguration("navi_mode")
     control_backend = LaunchConfiguration("control_backend")
     enable_nav_cmd_output = LaunchConfiguration("enable_nav_cmd_output")
     enable_udp_output = LaunchConfiguration("enable_udp_output")
@@ -42,6 +43,12 @@ def generate_launch_description():
     }]
 
     return LaunchDescription([
+        DeclareLaunchArgument(
+            "navi_mode",
+            default_value="1",
+            choices=["1", "2", "3"],
+            description="Select SCAN navigation mode.",
+        ),
         DeclareLaunchArgument(
             "control_backend",
             default_value="nav_cmd",
@@ -99,8 +106,12 @@ def generate_launch_description():
             output="screen",
             parameters=[
                 planner_yaml,
-                {"fsm.require_navigation_enable": ParameterValue(
-                    require_navigation_enable, value_type=bool)},
+                {
+                    "fsm.navi_mode": ParameterValue(
+                        navi_mode, value_type=int),
+                    "fsm.require_navigation_enable": ParameterValue(
+                        require_navigation_enable, value_type=bool),
+                },
             ],
             remappings=[
                 ("body_pose", "/lio/robo/odom"),

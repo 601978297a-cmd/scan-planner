@@ -27,6 +27,7 @@ setup(
             "scan_m20_safety_bridge = m20_scan_bringup.scan_m20_safety_bridge:main",
             "scan_m20_udp_safety_bridge = m20_scan_bringup.scan_m20_udp_safety_bridge:main",
             "scan_m20_direct_udp_bridge = m20_scan_bringup.scan_m20_direct_udp_bridge:main",
+            "smac_to_scan_bridge = m20_scan_bringup.smac_to_scan_bridge:main",
         ],
     },
 )
