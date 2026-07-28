@@ -89,11 +89,11 @@ def test_combined_startup_script_uses_only_version1_workspaces():
 
     assert "BBS_SETUP" not in script
     assert (
-        "/home/nvidia/scanplanner版本1/Super-LIO/install/setup.bash"
+        "/home/nvidia/scanplanner_test/Super-LIO/install/setup.bash"
         in script
     )
     assert (
-        "/home/nvidia/scanplanner版本1/SCAN-Planner/install/setup.bash"
+        "/home/nvidia/scanplanner_test/SCAN-Planner/install/setup.bash"
         in script
     )
     assert "/home/nvidia/Super-LIO/install/setup.bash" not in script
@@ -104,11 +104,11 @@ def test_rviz_script_starts_only_scan_rviz():
     script = _read(REPOSITORY_ROOT / "scripts/start_m20_rviz.sh")
 
     assert (
-        "/home/nvidia/scanplanner版本1/Super-LIO/install/setup.bash"
+        "/home/nvidia/scanplanner_test/Super-LIO/install/setup.bash"
         in script
     )
     assert (
-        "/home/nvidia/scanplanner版本1/SCAN-Planner/install/setup.bash"
+        "/home/nvidia/scanplanner_test/SCAN-Planner/install/setup.bash"
         in script
     )
     assert "m20_scan.rviz" in script

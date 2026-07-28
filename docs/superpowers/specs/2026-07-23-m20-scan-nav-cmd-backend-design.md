@@ -4,7 +4,7 @@
 
 ## 目标
 
-将 `/home/nvidia/scanplanner版本1/SCAN-Planner` 的真机控制后端从
+将 `/home/nvidia/scanplanner_test/SCAN-Planner` 的真机控制后端从
 basic_server UDP 摇杆轴指令切换为 M20 官方 DDS 速度话题
 `/NAV_CMD`，使 SCAN 的速度以 `m/s` 和 `rad/s` 直接下发，同时保留
 定位、雷达、命令超时、单发布者和停车保护。
@@ -44,7 +44,7 @@ basic_server UDP 摇杆轴指令切换为 M20 官方 DDS 速度话题
 
 ## Git 隔离和回退
 
-- worktree：`/home/nvidia/scanplanner版本1/SCAN-Planner`
+- worktree：`/home/nvidia/scanplanner_test/SCAN-Planner`
 - 当前分支：`work/m20-scan-linear-udp-20260723`
 - 修改前提交：`27dfb33`
 - 新回退分支：`backup/m20-before-nav-cmd-20260723`

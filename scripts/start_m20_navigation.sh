@@ -2,8 +2,8 @@
 set -eo pipefail
 export FASTRTPS_DEFAULT_PROFILES_FILE=/home/nvidia/.config/fastdds/eno1.xml
 ROS_SETUP="/opt/ros/humble/setup.bash"
-SUPER_LIO_SETUP="/home/nvidia/scanplanner版本1/Super-LIO/install/setup.bash"
-SCAN_SETUP="/home/nvidia/scanplanner版本1/SCAN-Planner/install/setup.bash"
+SUPER_LIO_SETUP="/home/nvidia/scanplanner_test/Super-LIO/install/setup.bash"
+SCAN_SETUP="/home/nvidia/scanplanner_test/SCAN-Planner/install/setup.bash"
 
 for setup_file in "$ROS_SETUP" "$SUPER_LIO_SETUP" "$SCAN_SETUP"; do
     if [[ ! -f "$setup_file" ]]; then

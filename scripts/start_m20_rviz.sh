@@ -2,9 +2,9 @@
 set -eo pipefail
 export FASTRTPS_DEFAULT_PROFILES_FILE=/home/nvidia/.config/fastdds/eno1.xml
 ROS_SETUP="/opt/ros/humble/setup.bash"
-SUPER_LIO_SETUP="/home/nvidia/scanplanner版本1/Super-LIO/install/setup.bash"
-SCAN_SETUP="/home/nvidia/scanplanner版本1/SCAN-Planner/install/setup.bash"
-RVIZ_CONFIG="/home/nvidia/scanplanner版本1/SCAN-Planner/src/"\
+SUPER_LIO_SETUP="/home/nvidia/scanplanner_test/Super-LIO/install/setup.bash"
+SCAN_SETUP="/home/nvidia/scanplanner_test/SCAN-Planner/install/setup.bash"
+RVIZ_CONFIG="/home/nvidia/scanplanner_test/SCAN-Planner/src/"\
 "m20_scan_bringup/rviz/m20_scan.rviz"
 
 for required_file in \

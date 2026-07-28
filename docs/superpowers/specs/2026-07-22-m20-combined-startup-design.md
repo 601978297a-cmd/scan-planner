@@ -2,14 +2,14 @@
 
 ## Goal
 
-Provide simple commands in `/home/nvidia/scanplanner版本1` so the operator can
+Provide simple commands in `/home/nvidia/scanplanner_test` so the operator can
 start localization and navigation together, while starting RViz separately.
 The commands must use the stable Super-LIO worktree and the current SCAN Planner
 worktree rather than an older build from another directory.
 
 ## Operator Commands
 
-Create two convenience links in `/home/nvidia/scanplanner版本1`:
+Create two convenience links in `/home/nvidia/scanplanner_test`:
 
 - `./启动定位和导航.sh` starts Super-LIO relocation and SCAN Planner.
 - `./启动RViz.sh` starts only the SCAN Planner RViz configuration.
@@ -46,8 +46,8 @@ control parameters are changed by this work.
 The scripts source these exact workspaces in order:
 
 1. `/opt/ros/humble/setup.bash`
-2. `/home/nvidia/scanplanner版本1/Super-LIO/install/setup.bash`
-3. `/home/nvidia/scanplanner版本1/SCAN-Planner/install/setup.bash`
+2. `/home/nvidia/scanplanner_test/Super-LIO/install/setup.bash`
+3. `/home/nvidia/scanplanner_test/SCAN-Planner/install/setup.bash`
 
 Each script checks that the required setup files exist and prints a direct
 error instead of silently falling back to `/home/nvidia/Super-LIO`.

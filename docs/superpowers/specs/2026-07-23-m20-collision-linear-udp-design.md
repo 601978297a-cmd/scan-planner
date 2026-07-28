@@ -17,7 +17,7 @@
 
 - 原工作目录：`/home/nvidia/scan_interface_audit/SCAN-Planner`
 - 原分支：`work/m20-scan-nav-safety-bridge`
-- 独立 worktree：`/home/nvidia/scanplanner版本1/SCAN-Planner`
+- 独立 worktree：`/home/nvidia/scanplanner_test/SCAN-Planner`
 - 修改分支：`work/m20-scan-linear-udp-20260723`
 - 修改前提交：`82a7512`
 - 备份分支：`backup/m20-scan-before-linear-udp-20260723`
@@ -128,14 +128,14 @@ else:
 查看修改前版本：
 
 ```bash
-git -C /home/nvidia/scanplanner版本1/SCAN-Planner diff \
+git -C /home/nvidia/scanplanner_test/SCAN-Planner diff \
   backup/m20-scan-before-linear-udp-20260723
 ```
 
 如需让新 worktree 回到修改前版本，应先保存任何仍需保留的未提交内容，然后在操作者确认后执行：
 
 ```bash
-git -C /home/nvidia/scanplanner版本1/SCAN-Planner switch \
+git -C /home/nvidia/scanplanner_test/SCAN-Planner switch \
   --detach backup/m20-scan-before-linear-udp-20260723
 ```
 
