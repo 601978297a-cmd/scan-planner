@@ -12,20 +12,22 @@ starts the existing Mode 3 navigation stack.
 
 ## Process behavior
 
-`localization_rviz.sh` delegates to the existing localization and RViz scripts
-so their environment checks and DDS configuration remain unchanged. It starts
-both as child processes and waits until either one exits. On `Ctrl+C`, or when
-either child exits, it terminates and waits for both children so no localization
-or RViz process is left behind.
+`localization_rviz.sh` directly configures the environment, starts Super-LIO
+localization and RViz as child processes, and waits until either one exits. On
+`Ctrl+C`, or when either child exits, it terminates and waits for both children
+so no localization or RViz process is left behind. It does not invoke another
+shell script.
 
-`navimode3.sh` is a top-level link to the existing
-`scripts/start_m20_mode3_navigation.sh`.
+`navimode3.sh` directly configures the environment and starts the Mode 3 ROS 2
+launch file. It does not invoke another shell script.
 
 ## Files and compatibility
 
-Add one tracked supervisor script:
+Add two tracked direct startup scripts:
 
-`scripts/start_m20_localization_rviz.sh`
+`scripts/localization_rviz.sh`
+
+`scripts/navimode3.sh`
 
 At `/home/nvidia/scanplanner_test`, create the two English links and remove all
 top-level `启动*.sh` links. Keep the existing English scripts under

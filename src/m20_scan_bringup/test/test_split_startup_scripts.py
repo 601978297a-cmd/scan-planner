@@ -28,11 +28,21 @@ def test_navigation_script_preserves_combined_launch_arguments():
     assert "relocation_points.py" not in script
 
 
-def test_localization_rviz_script_supervises_both_processes():
-    script = _read("start_m20_localization_rviz.sh")
+def test_localization_rviz_script_launches_both_processes_directly():
+    script = _read("localization_rviz.sh")
 
-    assert '"$SCRIPT_DIR/start_m20_localization.sh" &' in script
-    assert '"$SCRIPT_DIR/start_m20_rviz.sh" &' in script
+    assert "ros2 launch super_lio relocation_points.py &" in script
+    assert 'rviz2 -d "$RVIZ_CONFIG" &' in script
+    assert "start_m20_localization.sh" not in script
+    assert "start_m20_rviz.sh" not in script
     assert "wait -n" in script
     assert "trap cleanup EXIT" in script
     assert "kill \"$pid\"" in script
+
+
+def test_mode3_script_launches_navigation_directly():
+    script = _read("navimode3.sh")
+
+    assert "ros2 launch m20_scan_bringup" in script
+    assert "m20_mode3_navigation.launch.py" in script
+    assert "start_m20_mode3_navigation.sh" not in script
