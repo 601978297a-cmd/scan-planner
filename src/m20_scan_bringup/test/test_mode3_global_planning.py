@@ -76,11 +76,18 @@ def test_mode3_launch_starts_smac_and_keeps_scan_mode_runtime_selectable():
     assert '"fsm.navi_mode": ParameterValue(' in scan_launch
     assert "fsm.navi_mode: 1" in planner_config
     assert 'plugin: "nav2_smac_planner/SmacPlanner2D"' in smac_config
-    assert "downsampling_factor: 4" in smac_config
+    assert "downsample_costmap: false" in smac_config
+    assert "downsampling_factor: 1" in smac_config
+    assert "resolution: 0.20" in smac_config
     assert "global_frame: world" in smac_config
     assert "robot_base_frame: base_link_dog" in smac_config
     assert "robot_radius: 0.30" in smac_config
     assert "mode: trinary" in map_config
+    assert "resolution: 0.20000000298023224" in map_config
+    assert (
+        "origin: [-20.892608928618962, -52.00981577417834, 0.0]"
+        in map_config
+    )
     assert "free_thresh: 0.196" in map_config
     assert (
         "image: /home/nvidia/Super-LIO/src/super_lio/map/map.pgm"
