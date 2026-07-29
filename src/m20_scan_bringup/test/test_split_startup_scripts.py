@@ -46,3 +46,23 @@ def test_mode3_script_launches_navigation_directly():
     assert "ros2 launch m20_scan_bringup" in script
     assert "m20_mode3_navigation.launch.py" in script
     assert "start_m20_mode3_navigation.sh" not in script
+
+
+def test_english_localization_script_starts_only_localization():
+    script = _read("localization.sh")
+
+    assert "ros2 launch super_lio relocation_points.py" in script
+    assert "rviz2" not in script
+    assert "m20_mode3_navigation.launch.py" not in script
+
+
+def test_mode3_rviz_script_launches_both_processes_directly():
+    script = _read("navimode3_rviz.sh")
+
+    assert "m20_mode3_navigation.launch.py" in script
+    assert 'map:="$MAP_YAML" &' in script
+    assert 'rviz2 -d "$RVIZ_CONFIG" &' in script
+    assert "navimode3.sh" not in script
+    assert "start_m20_rviz.sh" not in script
+    assert "wait -n" in script
+    assert "trap cleanup EXIT" in script
