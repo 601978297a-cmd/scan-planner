@@ -12,6 +12,7 @@
 #include <iostream>
 #include <memory>
 #include <random>
+#include <nav_msgs/msg/occupancy_grid.hpp>
 #include <nav_msgs/msg/odometry.hpp>
 #include <queue>
 #include <rclcpp/rclcpp.hpp>
@@ -94,6 +95,11 @@ struct MappingParameters {
   double voxel_leaf_size_;
   bool cloud_is_world_;
   bool need_extrinsic_;
+  bool use_static_map_collision_;
+  string static_map_topic_;
+  int static_map_occupied_threshold_;
+  bool static_map_unknown_is_occupied_;
+  double static_map_inflation_radius_;
   Eigen::Matrix4d lidar_extrinsic_;
   Eigen::Matrix4d depth_extrinsic_;
 
@@ -215,9 +221,20 @@ private:
     double double_cylinder_offset;
   };
 
+  struct StaticMapSnapshot {
+    std::vector<uint8_t> occupancy_inflate;
+    uint32_t width;
+    uint32_t height;
+    double resolution;
+    double origin_x;
+    double origin_y;
+    double origin_yaw;
+  };
+
   MappingParameters mp_;
   MappingData md_;
   std::shared_ptr<const PlanningMapSnapshot> planning_snapshot_;
+  std::shared_ptr<const StaticMapSnapshot> static_map_snapshot_;
   uint64_t occupancy_version_{0};
   uint64_t last_visualized_version_{0};
 
@@ -228,6 +245,7 @@ private:
   void cloudPoseCallback(const sensor_msgs::msg::PointCloud2::ConstSharedPtr& cloud,
                          const nav_msgs::msg::Odometry::ConstSharedPtr& pose);
   void slidingMapFrameCallback(const nav_msgs::msg::Odometry::ConstSharedPtr& pose);
+  void staticMapCallback(const nav_msgs::msg::OccupancyGrid::ConstSharedPtr& map);
   void cloudCallback(const sensor_msgs::msg::PointCloud2::ConstSharedPtr& img);
 
   // update occupancy by raycasting
@@ -239,6 +257,7 @@ private:
   void raycastProcess();
   void publishPlanningSnapshot();
   void publishMaps(bool publish_occupancy, bool publish_inflated);
+  int getStaticMapOccupancy(Eigen::Vector3d pos, double yaw) const;
 
   inline void inflatePoint(const Eigen::Vector3i& pt, int inf_step_xy, int inf_step_z_up, int inf_step_z_down, vector<Eigen::Vector3i>& pts);
   inline int getInflateOccupancyFromBuffer(Eigen::Vector3d pos, const std::vector<char>& buffer);
@@ -284,6 +303,7 @@ private:
   shared_ptr<message_filters::Subscriber<nav_msgs::msg::Odometry>> lidar_pose_sub_;
   SynchronizerCloudPose sync_cloud_pose_;
   rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr sliding_map_frame_sub_;
+  rclcpp::Subscription<nav_msgs::msg::OccupancyGrid>::SharedPtr static_map_sub_;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr map_pub_;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr map_inf_pub_;
   rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr sliding_map_bbox_pub_;

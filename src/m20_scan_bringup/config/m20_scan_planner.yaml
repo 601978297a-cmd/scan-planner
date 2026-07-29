@@ -18,6 +18,11 @@ scan_planner_node:
     grid_map.cloud_is_world: false
     grid_map.need_extrinsic: false
     grid_map.voxel_leaf_size: 0.10
+    grid_map.use_static_map_collision: false
+    grid_map.static_map_topic: /map
+    grid_map.static_map_occupied_threshold: 65
+    grid_map.static_map_unknown_is_occupied: true
+    grid_map.static_map_inflation_radius: 0.30
 
     grid_map.resolution: 0.10
     grid_map.sliding_map_size_x: 10.0

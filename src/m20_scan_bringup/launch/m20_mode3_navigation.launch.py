@@ -26,6 +26,7 @@ def generate_launch_description():
             "enable_nav_cmd_output": "false",
             "enable_udp_output": "false",
             "require_navigation_enable": "false",
+            "use_static_map_collision": "true",
         }.items(),
     )
 

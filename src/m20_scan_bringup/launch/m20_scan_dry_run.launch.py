@@ -26,6 +26,8 @@ def generate_launch_description():
     enable_udp_output = LaunchConfiguration("enable_udp_output")
     require_navigation_enable = LaunchConfiguration(
         "require_navigation_enable")
+    use_static_map_collision = LaunchConfiguration(
+        "use_static_map_collision")
     sensor_pose_adapter_backend = LaunchConfiguration(
         "sensor_pose_adapter_backend")
     sensor_pose_adapter_parameters = [{
@@ -79,6 +81,12 @@ def generate_launch_description():
             choices=["true", "false"],
             description="Require the controller navigation-enable gate.",
         ),
+        DeclareLaunchArgument(
+            "use_static_map_collision",
+            default_value="false",
+            choices=["true", "false"],
+            description="Merge the 2D static map into SCAN collision checks.",
+        ),
         Node(
             package="m20_sensor_pose_adapter_cpp",
             executable="sensor_pose_adapter_cpp",
@@ -111,6 +119,8 @@ def generate_launch_description():
                         navi_mode, value_type=int),
                     "fsm.require_navigation_enable": ParameterValue(
                         require_navigation_enable, value_type=bool),
+                    "grid_map.use_static_map_collision": ParameterValue(
+                        use_static_map_collision, value_type=bool),
                 },
             ],
             remappings=[

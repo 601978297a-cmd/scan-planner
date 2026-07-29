@@ -70,6 +70,14 @@ void GridMap::initMap(
   load_parameter(node_, "grid_map.sensor_type", mp_.sensor_type_, string("lidar"));
   load_parameter(node_, "grid_map.cloud_is_world", mp_.cloud_is_world_, true);
   load_parameter(node_, "grid_map.need_extrinsic", mp_.need_extrinsic_, true);
+  load_parameter(node_, "grid_map.use_static_map_collision", mp_.use_static_map_collision_, false);
+  load_parameter(node_, "grid_map.static_map_topic", mp_.static_map_topic_, string("/map"));
+  load_parameter(node_, "grid_map.static_map_occupied_threshold",
+                 mp_.static_map_occupied_threshold_, 65);
+  load_parameter(node_, "grid_map.static_map_unknown_is_occupied",
+                 mp_.static_map_unknown_is_occupied_, true);
+  load_parameter(node_, "grid_map.static_map_inflation_radius",
+                 mp_.static_map_inflation_radius_, mp_.double_cylinder_radius_);
 
   mp_.lidar_extrinsic_ <<
       1.0, 0.0, 0.0, -0.01100,
@@ -178,6 +186,14 @@ void GridMap::initMap(
       "body_pose", rclcpp::SensorDataQoS().keep_last(1),
       std::bind(&GridMap::slidingMapFrameCallback, this, std::placeholders::_1),
       mapping_options);
+  if (mp_.use_static_map_collision_)
+  {
+    static_map_sub_ = node_->create_subscription<nav_msgs::msg::OccupancyGrid>(
+        mp_.static_map_topic_,
+        rclcpp::QoS(1).reliable().transient_local(),
+        std::bind(&GridMap::staticMapCallback, this, std::placeholders::_1),
+        mapping_options);
+  }
 
   occ_timer_ = node_->create_wall_timer(std::chrono::milliseconds(50),
                                         std::bind(&GridMap::updateOccupancyCallback, this),
@@ -813,8 +829,49 @@ void GridMap::publishPlanningSnapshot()
       std::memory_order_release);
 }
 
+int GridMap::getStaticMapOccupancy(Eigen::Vector3d pos, double yaw) const
+{
+  if (!mp_.use_static_map_collision_)
+    return 0;
+
+  const auto snapshot = std::atomic_load_explicit(
+      &static_map_snapshot_, std::memory_order_acquire);
+  if (!snapshot)
+    return -1;
+
+  const auto occupancy_at = [&snapshot](const Eigen::Vector2d &query) {
+    const double dx = query.x() - snapshot->origin_x;
+    const double dy = query.y() - snapshot->origin_y;
+    const double c = std::cos(snapshot->origin_yaw);
+    const double s = std::sin(snapshot->origin_yaw);
+    const double map_x = c * dx + s * dy;
+    const double map_y = -s * dx + c * dy;
+    const int x = static_cast<int>(std::floor(map_x / snapshot->resolution));
+    const int y = static_cast<int>(std::floor(map_y / snapshot->resolution));
+    if (x < 0 || y < 0 ||
+        x >= static_cast<int>(snapshot->width) ||
+        y >= static_cast<int>(snapshot->height))
+      return -1;
+    return static_cast<int>(
+        snapshot->occupancy_inflate[
+            static_cast<size_t>(y) * snapshot->width + x]);
+  };
+
+  const Eigen::Vector2d heading(std::cos(yaw), std::sin(yaw));
+  const Eigen::Vector2d center = pos.head<2>();
+  const int front_occupancy =
+      occupancy_at(center + mp_.double_cylinder_offset_ * heading);
+  if (front_occupancy != 0)
+    return front_occupancy;
+  return occupancy_at(center - mp_.double_cylinder_offset_ * heading);
+}
+
 int GridMap::getInflateOccupancy(Eigen::Vector3d pos, double yaw) const
 {
+  const int static_occupancy = getStaticMapOccupancy(pos, yaw);
+  if (static_occupancy != 0)
+    return static_occupancy;
+
   const auto snapshot = std::atomic_load_explicit(
       &planning_snapshot_, std::memory_order_acquire);
   if (!snapshot)
@@ -952,6 +1009,97 @@ void GridMap::slidingMapFrameCallback(const nav_msgs::msg::Odometry::ConstShared
 {
   const geometry_msgs::msg::Point &pos = pose->pose.pose.position;
   md_.sliding_map_frame_pos_ = Eigen::Vector3d(pos.x, pos.y, pos.z);
+}
+
+void GridMap::staticMapCallback(
+    const nav_msgs::msg::OccupancyGrid::ConstSharedPtr &map)
+{
+  if (!map || map->info.width == 0 || map->info.height == 0 ||
+      map->info.resolution <= 0.0)
+  {
+    RCLCPP_WARN(node_->get_logger(), "[GridMap] ignoring invalid static map");
+    return;
+  }
+  if (!map->header.frame_id.empty() && map->header.frame_id != mp_.frame_id_)
+  {
+    RCLCPP_ERROR(
+        node_->get_logger(),
+        "[GridMap] static map frame '%s' does not match planning frame '%s'",
+        map->header.frame_id.c_str(), mp_.frame_id_.c_str());
+    return;
+  }
+
+  const size_t cell_count =
+      static_cast<size_t>(map->info.width) * map->info.height;
+  if (map->data.size() != cell_count)
+  {
+    RCLCPP_WARN(node_->get_logger(), "[GridMap] static map data size mismatch");
+    return;
+  }
+
+  auto snapshot = std::make_shared<StaticMapSnapshot>();
+  snapshot->width = map->info.width;
+  snapshot->height = map->info.height;
+  snapshot->resolution = map->info.resolution;
+  snapshot->origin_x = map->info.origin.position.x;
+  snapshot->origin_y = map->info.origin.position.y;
+  const auto &orientation = map->info.origin.orientation;
+  snapshot->origin_yaw = std::atan2(
+      2.0 * (orientation.w * orientation.z +
+             orientation.x * orientation.y),
+      1.0 - 2.0 * (orientation.y * orientation.y +
+                   orientation.z * orientation.z));
+  snapshot->occupancy_inflate.assign(cell_count, 0);
+
+  std::vector<uint8_t> occupied(cell_count, 0);
+  const int occupied_threshold =
+      std::clamp(mp_.static_map_occupied_threshold_, 0, 100);
+  for (size_t index = 0; index < cell_count; ++index)
+  {
+    const int value = static_cast<int>(map->data[index]);
+    occupied[index] =
+        value >= occupied_threshold ||
+        (value < 0 && mp_.static_map_unknown_is_occupied_);
+  }
+
+  const double inflation_radius =
+      std::max(0.0, mp_.static_map_inflation_radius_);
+  const int inflation_steps =
+      static_cast<int>(std::ceil(inflation_radius / snapshot->resolution));
+  for (uint32_t y = 0; y < snapshot->height; ++y)
+    for (uint32_t x = 0; x < snapshot->width; ++x)
+    {
+      const size_t source =
+          static_cast<size_t>(y) * snapshot->width + x;
+      if (!occupied[source])
+        continue;
+
+      for (int dy = -inflation_steps; dy <= inflation_steps; ++dy)
+        for (int dx = -inflation_steps; dx <= inflation_steps; ++dx)
+        {
+          if (std::hypot(dx, dy) * snapshot->resolution >
+              inflation_radius + 1e-6)
+            continue;
+          const int nx = static_cast<int>(x) + dx;
+          const int ny = static_cast<int>(y) + dy;
+          if (nx < 0 || ny < 0 ||
+              nx >= static_cast<int>(snapshot->width) ||
+              ny >= static_cast<int>(snapshot->height))
+            continue;
+          snapshot->occupancy_inflate[
+              static_cast<size_t>(ny) * snapshot->width + nx] = 1;
+        }
+    }
+
+  std::shared_ptr<const StaticMapSnapshot> immutable_snapshot = snapshot;
+  std::atomic_store_explicit(
+      &static_map_snapshot_, std::move(immutable_snapshot),
+      std::memory_order_release);
+  RCLCPP_INFO(
+      node_->get_logger(),
+      "[GridMap] static collision map ready: %ux%u, %.3f m, inflation %.2f m",
+      snapshot->width, snapshot->height, snapshot->resolution,
+      inflation_radius);
 }
 
 void GridMap::cloudCallback(const sensor_msgs::msg::PointCloud2::ConstSharedPtr &img)

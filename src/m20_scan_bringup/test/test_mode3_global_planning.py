@@ -72,13 +72,20 @@ def test_mode3_launch_starts_smac_and_keeps_scan_mode_runtime_selectable():
     assert 'package="nav2_lifecycle_manager"' in mode3_launch
     assert 'executable="smac_to_scan_bridge"' in mode3_launch
     assert '"navi_mode": "3"' in mode3_launch
+    assert '"use_static_map_collision": "true"' in mode3_launch
     assert (
         "/home/nvidia/Super-LIO/src/super_lio/map/map.yaml"
         in mode3_launch
     )
     assert 'default_value="1"' in scan_launch
+    assert '"use_static_map_collision"' in scan_launch
+    assert 'default_value="false"' in scan_launch
     assert '"fsm.navi_mode": ParameterValue(' in scan_launch
+    assert '"grid_map.use_static_map_collision": ParameterValue(' in scan_launch
     assert "fsm.navi_mode: 1" in planner_config
+    assert "grid_map.use_static_map_collision: false" in planner_config
+    assert "grid_map.static_map_topic: /map" in planner_config
+    assert "grid_map.static_map_inflation_radius: 0.30" in planner_config
     assert 'plugin: "nav2_smac_planner/SmacPlanner2D"' in smac_config
     assert "downsample_costmap: false" in smac_config
     assert "downsampling_factor: 1" in smac_config
@@ -97,6 +104,27 @@ def test_mode3_launch_starts_smac_and_keeps_scan_mode_runtime_selectable():
         "image: /home/nvidia/Super-LIO/src/super_lio/map/map.pgm"
         in map_config
     )
+
+
+def test_scan_collision_checks_merge_static_map():
+    header = _read_source(
+        "planner/plan_env/include/plan_env/grid_map.h")
+    source = _read_source(
+        "planner/plan_env/src/grid_map.cpp")
+
+    assert "nav_msgs/msg/occupancy_grid.hpp" in header
+    assert "staticMapCallback" in header
+    assert "static_map_snapshot_" in header
+    assert "static_map_sub_" in header
+    assert "transient_local()" in source
+    assert "staticMapCallback" in source
+    assert "static_map_unknown_is_occupied_" in source
+    assert "static_map_inflation_radius_" in source
+
+    collision_check = source[source.index(
+        "int GridMap::getInflateOccupancy"):]
+    assert "getStaticMapOccupancy(pos, yaw)" in collision_check
+    assert "if (static_occupancy != 0)" in collision_check
 
 
 def test_mode3_replan_preserves_reference_path():
