@@ -27,6 +27,8 @@ def generate_launch_description():
             "enable_udp_output": "false",
             "require_navigation_enable": "false",
             "use_static_map_collision": "true",
+            "double_cylinder_radius": "0.35",
+            "static_map_inflation_radius": "0.35",
         }.items(),
     )
 

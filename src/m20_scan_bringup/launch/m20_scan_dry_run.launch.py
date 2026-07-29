@@ -28,6 +28,10 @@ def generate_launch_description():
         "require_navigation_enable")
     use_static_map_collision = LaunchConfiguration(
         "use_static_map_collision")
+    double_cylinder_radius = LaunchConfiguration(
+        "double_cylinder_radius")
+    static_map_inflation_radius = LaunchConfiguration(
+        "static_map_inflation_radius")
     sensor_pose_adapter_backend = LaunchConfiguration(
         "sensor_pose_adapter_backend")
     sensor_pose_adapter_parameters = [{
@@ -87,6 +91,16 @@ def generate_launch_description():
             choices=["true", "false"],
             description="Merge the 2D static map into SCAN collision checks.",
         ),
+        DeclareLaunchArgument(
+            "double_cylinder_radius",
+            default_value="0.30",
+            description="Radius of each SCAN body collision cylinder.",
+        ),
+        DeclareLaunchArgument(
+            "static_map_inflation_radius",
+            default_value="0.30",
+            description="Mode-specific static map collision inflation.",
+        ),
         Node(
             package="m20_sensor_pose_adapter_cpp",
             executable="sensor_pose_adapter_cpp",
@@ -121,6 +135,10 @@ def generate_launch_description():
                         require_navigation_enable, value_type=bool),
                     "grid_map.use_static_map_collision": ParameterValue(
                         use_static_map_collision, value_type=bool),
+                    "grid_map.double_cylinder_radius": ParameterValue(
+                        double_cylinder_radius, value_type=float),
+                    "grid_map.static_map_inflation_radius": ParameterValue(
+                        static_map_inflation_radius, value_type=float),
                 },
             ],
             remappings=[

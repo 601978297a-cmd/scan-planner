@@ -74,6 +74,8 @@ def test_mode3_launch_starts_smac_and_keeps_scan_mode_runtime_selectable():
     assert 'executable="smac_to_scan_bridge"' in mode3_launch
     assert '"navi_mode": "3"' in mode3_launch
     assert '"use_static_map_collision": "true"' in mode3_launch
+    assert '"double_cylinder_radius": "0.35"' in mode3_launch
+    assert '"static_map_inflation_radius": "0.35"' in mode3_launch
     assert (
         "/home/nvidia/Super-LIO/src/super_lio/map/map.yaml"
         in mode3_launch
@@ -81,6 +83,8 @@ def test_mode3_launch_starts_smac_and_keeps_scan_mode_runtime_selectable():
     assert 'default_value="1"' in scan_launch
     assert '"use_static_map_collision"' in scan_launch
     assert 'default_value="false"' in scan_launch
+    assert '"double_cylinder_radius"' in scan_launch
+    assert '"static_map_inflation_radius"' in scan_launch
     assert '"fsm.navi_mode": ParameterValue(' in scan_launch
     assert '"grid_map.use_static_map_collision": ParameterValue(' in scan_launch
     assert "fsm.navi_mode: 1" in planner_config
@@ -93,7 +97,7 @@ def test_mode3_launch_starts_smac_and_keeps_scan_mode_runtime_selectable():
     assert "resolution: 0.20" in smac_config
     assert "global_frame: world" in smac_config
     assert "robot_base_frame: base_link_dog" in smac_config
-    assert "robot_radius: 0.30" in smac_config
+    assert "robot_radius: 0.35" in smac_config
     assert "mode: trinary" in map_config
     assert "resolution: 0.20000000298023224" in map_config
     assert (
