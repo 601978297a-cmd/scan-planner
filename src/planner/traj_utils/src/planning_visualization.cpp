@@ -280,14 +280,8 @@ namespace scan_planner
     int i = 0;
     vector<Eigen::Vector3d> list;
 
-    Eigen::Vector4d color = Eigen::Vector4d(0.5 + ((double)rand() / RAND_MAX / 2), 0.5 + ((double)rand() / RAND_MAX / 2), 0, 1); // make the A star paths different every time.
-    double scale = 0.05 + (double)rand() / RAND_MAX / 10;
-
-    // for ( int i=0; i<10; i++ )
-    // {
-    //   //Eigen::Vector4d color(1,1,0,0);
-    //   displayMarkerList(a_star_list_pub, list, scale, color, id+i);
-    // }
+    const Eigen::Vector4d color(1.0, 0.85, 0.0, 1.0);
+    constexpr double scale = 0.06;
 
     for (auto block : a_star_paths)
     {
@@ -300,6 +294,19 @@ namespace scan_planner
       displayMarkerList(a_star_list_pub, list, scale, color, id + i); // real ids used: [ id ~ id+a_star_paths.size() ]
       i++;
     }
+
+    visualization_msgs::msg::Marker stale_marker;
+    stale_marker.header.frame_id = frame_id_;
+    stale_marker.header.stamp = node_->now();
+    stale_marker.action = visualization_msgs::msg::Marker::DELETE;
+    for (int stale_id = i; stale_id < last_a_star_path_count_; ++stale_id)
+    {
+      stale_marker.id = id + stale_id;
+      a_star_list_pub->publish(stale_marker);
+      stale_marker.id = id + stale_id + 1000;
+      a_star_list_pub->publish(stale_marker);
+    }
+    last_a_star_path_count_ = i;
   }
 
   void PlanningVisualization::displayArrowList(const MarkerArrayPublisher::SharedPtr &pub,
@@ -326,6 +333,7 @@ namespace scan_planner
     init_list_pub->publish(marker);
     optimal_list_pub->publish(marker);
     a_star_list_pub->publish(marker);
+    last_a_star_path_count_ = 0;
   }
 
   // PlanningVisualization::

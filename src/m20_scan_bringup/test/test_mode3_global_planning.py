@@ -143,3 +143,4 @@ def test_rviz_shows_mode3_map_and_global_paths():
     assert "Value: /plan" in rviz_config
     assert "Name: SCAN Reference Path" in rviz_config
     assert "Value: /initial_path" in rviz_config
+    assert "Name: SCAN Local Rebound A Star" in rviz_config

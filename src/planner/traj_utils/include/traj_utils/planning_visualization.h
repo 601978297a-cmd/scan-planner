@@ -11,7 +11,6 @@
 #include <vector>
 #include <visualization_msgs/msg/marker.hpp>
 #include <visualization_msgs/msg/marker_array.hpp>
-#include <stdlib.h>
 
 using std::vector;
 namespace scan_planner
@@ -29,6 +28,7 @@ namespace scan_planner
     MarkerPublisher::SharedPtr init_list_pub;
     MarkerPublisher::SharedPtr optimal_list_pub;
     MarkerPublisher::SharedPtr a_star_list_pub;
+    int last_a_star_path_count_{0};
 
   public:
     PlanningVisualization(/* args */) {}
