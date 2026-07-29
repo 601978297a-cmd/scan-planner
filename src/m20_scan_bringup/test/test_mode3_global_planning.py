@@ -29,7 +29,7 @@ def _pose(x, y, z=1.0, frame_id="world"):
     return pose
 
 
-def test_smac_path_is_spaced_and_converted_for_scan():
+def test_smac_path_is_converted_for_scan():
     path = PathMessage()
     path.header.frame_id = "world"
     path.poses = [
@@ -39,10 +39,11 @@ def test_smac_path_is_spaced_and_converted_for_scan():
         _pose(0.5, 0.0),
     ]
 
-    sanitized = sanitize_path(path, "world", 0.20)
+    sanitized = sanitize_path(path, "world")
 
     assert sanitized is not None
-    assert [pose.pose.position.x for pose in sanitized.poses] == [0.25, 0.5]
+    assert [pose.pose.position.x for pose in sanitized.poses] == [
+        0.0, 0.1, 0.25, 0.5]
     assert all(pose.pose.position.z == 0.0 for pose in sanitized.poses)
     assert all(
         pose.header.frame_id == "world" for pose in sanitized.poses)
@@ -52,12 +53,12 @@ def test_smac_path_rejects_wrong_frame_and_non_finite_points():
     wrong_frame = PathMessage()
     wrong_frame.header.frame_id = "map"
     wrong_frame.poses = [_pose(0.0, 0.0), _pose(1.0, 0.0)]
-    assert sanitize_path(wrong_frame, "world", 0.20) is None
+    assert sanitize_path(wrong_frame, "world") is None
 
     invalid = PathMessage()
     invalid.header.frame_id = "world"
     invalid.poses = [_pose(0.0, 0.0), _pose(float("nan"), 0.0)]
-    assert sanitize_path(invalid, "world", 0.20) is None
+    assert sanitize_path(invalid, "world") is None
 
 
 def test_mode3_launch_starts_smac_and_keeps_scan_mode_runtime_selectable():
@@ -142,6 +143,11 @@ def test_mode3_replan_preserves_reference_path():
         reference_guard:refresh_global]
     assert "std::numeric_limits<double>::max()" in source
     assert "global_data.last_progress_time_ = projection_t;" in source
+    assert "waypoints.size() < 2" in source
+    assert "waypoints.begin() + 1" in source
+    assert "waypoints.front()" in source
+    assert "constexpr double min_dist = 0.5;" in source
+    assert "No odometry yet; cannot accept reference path" in source
 
 
 def test_mode3_startup_is_separate_from_mode1_startup():

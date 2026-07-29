@@ -227,13 +227,15 @@ namespace scan_planner
 
   bool SCANReplanFSM::planGlobalTrajByWaypoints(const std::vector<Eigen::Vector3d> &waypoints)
   {
-    if (waypoints.empty())
+    if (waypoints.size() < 2)
     {
-      RCLCPP_WARN(node_->get_logger(), "No waypoint supplied for global trajectory");
+      RCLCPP_WARN(node_->get_logger(), "Reference path requires at least two points");
       return false;
     }
 
     end_pt_ = waypoints.back();
+    std::vector<Eigen::Vector3d> reference_waypoints(
+        waypoints.begin() + 1, waypoints.end());
 
     for (size_t i = 0; i < waypoints.size(); i++)
     {
@@ -241,10 +243,10 @@ namespace scan_planner
     }
 
     bool success = planner_manager_->planGlobalTrajWaypoints(
-        odom_pos_,
-        odom_vel_,
+        waypoints.front(),
         Eigen::Vector3d::Zero(),
-        waypoints,
+        Eigen::Vector3d::Zero(),
+        reference_waypoints,
         Eigen::Vector3d::Zero(),
         Eigen::Vector3d::Zero());
 
@@ -378,20 +380,40 @@ namespace scan_planner
     }
     if (!navigationRequestAllowed(msg->header.stamp, "reference path"))
       return;
+    if (!have_odom_)
+    {
+      RCLCPP_WARN_THROTTLE(node_->get_logger(), *node_->get_clock(), 1000,
+                           "No odometry yet; cannot accept reference path");
+      return;
+    }
 
     trigger_ = true;
+    end_pt_ << msg->poses.back().pose.position.x,
+        msg->poses.back().pose.position.y,
+        msg->poses.back().pose.position.z + body_height_;
 
     std::vector<Eigen::Vector3d> waypoints;
     waypoints.reserve(msg->poses.size());
+    constexpr double min_dist = 0.5;
+    Eigen::Vector3d last_wp;
+    bool first = true;
 
     for (const auto& pose_stamped : msg->poses)
     {
       Eigen::Vector3d wp;
       wp(0) = pose_stamped.pose.position.x;
       wp(1) = pose_stamped.pose.position.y;
-      wp(2) = pose_stamped.pose.position.z + body_height_; // Adjust for body height
-      waypoints.push_back(wp);
+      wp(2) = pose_stamped.pose.position.z + body_height_;
+      if (first || (wp - last_wp).norm() >= min_dist)
+      {
+        waypoints.push_back(wp);
+        last_wp = wp;
+        first = false;
+      }
     }
+    if ((waypoints.back() - end_pt_).norm() > 1e-6)
+      waypoints.push_back(end_pt_);
+
     bool success = planGlobalTrajByWaypoints(waypoints);
 
     if (success)

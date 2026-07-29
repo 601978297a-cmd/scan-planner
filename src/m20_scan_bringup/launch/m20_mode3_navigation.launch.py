@@ -78,7 +78,6 @@ def generate_launch_description():
                 "path_topic": "/initial_path",
                 "planner_action": "/compute_path_to_pose",
                 "planner_id": "GridBased",
-                "min_path_spacing": 0.20,
             }],
         ),
         scan_navigation,

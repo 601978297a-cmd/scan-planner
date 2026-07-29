@@ -10,7 +10,7 @@ from rclpy.action import ActionClient
 from rclpy.node import Node
 
 
-def sanitize_path(path, global_frame, min_spacing):
+def sanitize_path(path, global_frame):
     if not path.poses:
         return None
     if path.header.frame_id not in ("", global_frame):
@@ -32,30 +32,10 @@ def sanitize_path(path, global_frame, min_spacing):
     if len(poses) == 1:
         return None
 
-    # Smac includes the robot start pose. SCAN prepends its current odometry
-    # pose, so omit Smac's first pose to avoid a duplicate zero-length segment.
-    selected = []
-    anchor = poses[0]
-    for pose in poses[1:-1]:
-        dx = pose.pose.position.x - anchor.pose.position.x
-        dy = pose.pose.position.y - anchor.pose.position.y
-        if math.hypot(dx, dy) >= min_spacing:
-            selected.append(pose)
-            anchor = pose
-
-    final_pose = poses[-1]
-    if not selected:
-        selected.append(final_pose)
-    else:
-        dx = final_pose.pose.position.x - selected[-1].pose.position.x
-        dy = final_pose.pose.position.y - selected[-1].pose.position.y
-        if math.hypot(dx, dy) > 1.0e-6:
-            selected.append(final_pose)
-
     sanitized = Path()
     sanitized.header = copy.deepcopy(path.header)
     sanitized.header.frame_id = global_frame
-    sanitized.poses = selected
+    sanitized.poses = poses
     return sanitized
 
 
@@ -73,8 +53,6 @@ class SmacToScanBridge(Node):
             "planner_action", "/compute_path_to_pose").value
         self.planner_id = self.declare_parameter(
             "planner_id", "GridBased").value
-        self.min_path_spacing = float(self.declare_parameter(
-            "min_path_spacing", 0.20).value)
 
         self.path_pub = self.create_publisher(Path, self.path_topic, 1)
         self.goal_sub = self.create_subscription(
@@ -153,8 +131,7 @@ class SmacToScanBridge(Node):
             return
 
         raw_path = wrapped_result.result.path
-        path = sanitize_path(
-            raw_path, self.global_frame, self.min_path_spacing)
+        path = sanitize_path(raw_path, self.global_frame)
         if path is None:
             self.get_logger().error(
                 "Reject invalid or empty path returned by Smac")
