@@ -26,7 +26,7 @@ cleanup() {
 
     for pid in "$rviz_pid" "$navigation_pid"; do
         if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
-            kill "$pid"
+            kill -TERM -- "-$pid" 2>/dev/null || kill -TERM "$pid"
         fi
     done
 
@@ -44,12 +44,12 @@ source "$ROS_SETUP"
 source "$SUPER_LIO_SETUP"
 source "$SCAN_SETUP"
 
-ros2 launch m20_scan_bringup \
+setsid ros2 launch m20_scan_bringup \
     m20_mode3_navigation.launch.py \
     map:="$MAP_YAML" &
 navigation_pid=$!
 
-rviz2 -d "$RVIZ_CONFIG" &
+setsid rviz2 -d "$RVIZ_CONFIG" &
 rviz_pid=$!
 
 wait -n "$navigation_pid" "$rviz_pid"
